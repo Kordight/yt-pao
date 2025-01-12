@@ -50,8 +50,8 @@ def main():
         playlist_table = format_table(playlist_headers, playlist_rows)
         print("Playlist Data:\n")
         print(playlist_table)
-        video_headers = ["Title", "URL", "Duration", "Uploader","Uploader URL", "Approximate View Count", "Like Count", "Thumbnail"]
-        video_rows = [[video.title, video.url, video.duration, video.uploader, video.uploader_url, video.view_count] for video in videos]
+        video_headers = ["Title", "URL", "Duration", "Uploader","Uploader URL", "Approximate View Count", "bValid"]
+        video_rows = [[video.title, video.url, video.duration, video.uploader, video.uploader_url, video.view_count, video.valid] for video in videos]
 
         # Format table
         video_table = format_table(video_headers, video_rows)

@@ -2,13 +2,14 @@ import yt_dlp
 
 class Video:
 
-    def __init__(self, title, url, duration, uploader, view_count=0, video_uploader_url=None):
+    def __init__(self, title, url, duration, uploader, view_count=0, video_uploader_url=None, valid=1):
         self.title = title
         self.url = url
         self.duration = duration
         self.uploader = uploader
         self.view_count = view_count
         self.uploader_url = video_uploader_url
+        self.valid = valid
 
     def __eq__(self, other):
         if isinstance(other, Video):
@@ -46,9 +47,7 @@ def get_playlist_content(playlist_link, ydl_opts):
         video_duration = entry.get('duration', 0)  
         video_uploader = entry.get('uploader', 'Unknown')
         video_uploader_url = entry.get('uploader_url', 'Unknown')
-
         video_view_count = entry.get('view_count', 0)  
-    
         videos.append(Video(video_title, video_url, video_duration, video_uploader, video_view_count, video_uploader_url))
 
     return playlist_data, videos
@@ -86,7 +85,8 @@ def find_unavailable_videos(playlist_link):
     # Identify invalid videos
     filtered_urls = {video.url for video in videos_filtered}
     unavailable_videos = [video for video in videos_all if video.url not in filtered_urls]
-
+    for video in unavailable_videos:
+        video.valid = 0
     return playlist_data_all, unavailable_videos
 
 
@@ -109,6 +109,16 @@ def parse_playlist(url, listMode):
     if listMode == "all":
         # Download full playlist data
         playlist_data, videos = get_playlist_content(url, ydl_opts_all)
+
+        # Find invalid videos and replace the corresponding entries in 'videos'
+        playlist_data, unavailable_videos = find_unavailable_videos(url)
+        
+        # Zastępujemy tylko te wideo, które są niedostępne
+        for unavailable_video in unavailable_videos:
+            for idx, video in enumerate(videos):
+                if video.url == unavailable_video.url:  
+                    videos[idx] = unavailable_video
+        videos.sort(key=lambda video: video.valid)
         return playlist_data, videos
 
     elif listMode == "unavailable":
