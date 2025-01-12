@@ -24,3 +24,9 @@ Flags:
 - `--playlistLink` - str input with the YouTube playlist link
 - `--resultFormat` - str input separated by spaces that generates the report in. Expected values: `cmd`, `txt`, `json`, `mySQL`, `csv`
 - `--listMode` - str input specifying the work mode, expected values: `all`, `unavailable`, `available`
+
+### Outputs
+
+#### `cmd`
+
+Program will display result in table containing "Title", "URL", "Duration", "Uploader", "Uploader URL", "Approximate View Count", "bValid"

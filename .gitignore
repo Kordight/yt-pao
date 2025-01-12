@@ -5,7 +5,10 @@ __pycache__/
 
 # C extensions
 *.so
-
+# Ignore Output directory 
+Output/*
+# Ignore Logs directory
+Logs/*
 # Distribution / packaging
 .Python
 build/

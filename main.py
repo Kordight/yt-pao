@@ -2,6 +2,8 @@ import argparse
 import re
 import sys
 from ytdlp_parser import parse_playlist
+import os
+from datetime import datetime
 
 def process_playlist_URL(playlist_URL):
     pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
@@ -37,27 +39,62 @@ def format_table(headers, rows):
     )
     return f"{header_row}\n{separator}\n{data_rows}"
 
+def compose_text_table(playlist_data, videos):
+        # Ensure playlist_data is a dictionary and playlist_data.items() works
+        playlist_headers = ["Key", "Value"]
+        playlist_rows = list(playlist_data.items())  # Assuming playlist_data is a dictionary
+        playlist_table = format_table(playlist_headers, playlist_rows)
+
+
+        # Ensure videos is a list of objects with required attributes
+        video_headers = ["Lp", "Title", "URL", "Duration", "Uploader", "Uploader URL", "Approximate View Count", "bValid"]
+        
+        # Safely access video attributes and handle missing ones
+        video_rows = []
+        for index, video in enumerate(videos):
+            try:
+                # Gather required fields from the video object
+                video_row = [
+                    index + 1,
+                    getattr(video, 'title', 'N/A'),
+                    getattr(video, 'url', 'N/A'),
+                    getattr(video, 'duration', 'N/A'),
+                    getattr(video, 'uploader', 'N/A'),
+                    getattr(video, 'uploader_url', 'N/A'),
+                    getattr(video, 'view_count', 'N/A'),
+                    getattr(video, 'valid', 'N/A')
+                ]
+                video_rows.append(video_row)
+            except AttributeError as e:
+                print(f"Missing attribute in video object: {e}")
+        
+        # Format table for videos
+        video_table = format_table(video_headers, video_rows)
+        return playlist_table, video_table
+
 def main():
+    date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     args = parse_args()
     playlist_data, videos = parse_playlist(process_playlist_URL(args.playlistLink), args.listMode)
+    playlist_name = playlist_data['playlist_name']
+    folder_path = f"Output/{playlist_name}"
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
     print(f"YouTube playlist link: {args.playlistLink}")
     print(f"Report format: {args.resultFormat}")
     print(f"List mode: {args.listMode}")
-    
     if args.resultFormat == "cmd":
-        playlist_headers = ["Key", "Value"]
-        playlist_rows = list(playlist_data.items()) 
-        playlist_table = format_table(playlist_headers, playlist_rows)
+        playlist_table, video_table = compose_text_table(playlist_data, videos)
         print("Playlist Data:\n")
         print(playlist_table)
-        video_headers = ["Title", "URL", "Duration", "Uploader","Uploader URL", "Approximate View Count", "bValid"]
-        video_rows = [[video.title, video.url, video.duration, video.uploader, video.uploader_url, video.view_count, video.valid] for video in videos]
-
-        # Format table
-        video_table = format_table(video_headers, video_rows)
         print("\nVideo Data:\n")
         print(video_table)
-
-
+    elif args.resultFormat == "txt":
+        playlist_table, video_table = compose_text_table(playlist_data, videos)
+        file_path = os.path.join(folder_path, f"{date_time}.txt")
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(f"Playlist Data:\n\n{playlist_table}\n")
+            file.write(f"\nVideo Data:\n\n{video_table}")
+        print(f"Saved .txt report to: {file_path}")
 if __name__ == "__main__":
     main()
