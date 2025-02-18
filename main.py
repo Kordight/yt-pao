@@ -138,7 +138,7 @@ def main():
                         writer.writerow(video_row)
                     except AttributeError as e:
                         print(f"Missing attribute in video object: {e}")
-        def generate_html_report(args, videos, playlist_name, folder_path, date_time):
+    elif args.resultFormat == "html":
             js_code = open('web_template/script_head_template.js', 'r', encoding='utf-8').read()
             css_styles = open('web_template/style_template.css', 'r', encoding='utf-8').read()
 
@@ -148,7 +148,7 @@ def main():
                 page_title = f"Removed videos for Playlist: {playlist_name}"
             else:
                 html_list = generate_html_list(videos, playlist_name, args.playlistLink)
-                html_template_path = 'web_template/html_template_similar_report.html'
+                html_template_path = 'web_template/html_template_backup_report.html'
                 page_title = f"Report for Playlist: {playlist_name}"
 
             html_template = read_html_template(html_template_path)
@@ -176,10 +176,9 @@ def main():
                 file.write(final_html)
 
             print(f"Saved .html report to: {file_path}")
-
+    
     elif args.resultFormat == "mySQL":
             db_config = load_db_config()
-            # Dodaj wywołanie create_database przed add_report
             create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'])
             video_titles = [video.title for video in videos]
             saved_video_links = [video.url for video in videos]

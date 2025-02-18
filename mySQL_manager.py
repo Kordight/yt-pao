@@ -108,9 +108,8 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
 
             # Add videos and report details
             for title, link, length, uploader_row, uploader_url_row, view_count_row, isvalidl_row in zip(video_titles, saved_video_links, video_durations, uploader, uploader_url, view_count, isvalidl):
-                # Ustaw domyślną wartość dla duration, jeśli jest None
                 if length is None:
-                    length = 0  # Domyślna wartość dla duration
+                    length = 0 
 
                 # Check if video already exists
                 cursor.execute('''
