@@ -31,9 +31,7 @@ def generate_html_list(songs, playlist_name, playlist_url):
     
     return html_content
 
-def generate_html_list_invalid_videos(deleted_videos, deleted_videos_status, playlist_name, playlist_link):
-    # Sort songs alphabetically by title
-    
+def generate_html_list_invalid_videos(deleted_videos, playlist_name, playlist_link):
     song_amount = len(deleted_videos)
     html_content = (
         "<div class='border-box'>"
@@ -49,9 +47,20 @@ def generate_html_list_invalid_videos(deleted_videos, deleted_videos_status, pla
         "</tr>"
     )
     
-    for deleted_videos, deleted_videos_status in zip(deleted_videos, deleted_videos_status):
-        #html_content += f"<li><a href='{deleted_videos}' target='_blank'>{deleted_videos_status}</a></li><br>"
-        html_content += f"<tr><td><a href='{deleted_videos}' target='_blank'>{deleted_videos_status}</a></td><td>{deleted_videos}</td><td><a href='https://web.archive.org/web/20240000000000*/{deleted_videos}' target='_blank'>Search on Wayback machine</a></td></tr>"
+    for video in deleted_videos:
+        if "[Private video]" == video.title: 
+            status = "[Private video]"
+        elif "[Deleted video]" == video.title:
+            status = "[Deleted video]"
+        else:
+            status = "[Unavailable]"
+        
+        html_content += f"<tr>"
+        html_content += f"<td><a href='{video.url}' target='_blank'>{status}</a></td>"
+        html_content += f"<td>{video.url}</td>"
+        html_content += f"<td><a href='https://web.archive.org/web/20240000000000*/{video.url}' target='_blank'>Search on Wayback machine</a></td>"
+        html_content += f"</tr>"
+    
     html_content += "</table></div>"
     
     return html_content

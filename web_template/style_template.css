@@ -1,0 +1,77 @@
+body {
+    font-family: 'Trebuchet MS', sans-serif;
+    margin: 0;
+    margin-top: 15px;
+}
+
+footer {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+a {
+    text-decoration: none;
+    color: rgb(62, 100, 144);
+}
+
+a:visited {
+    color: rgb(123, 23, 129)
+}
+
+.border-box {
+    /*text-align: left;*/
+    padding: 3vh;
+    border: 1px rgb(178, 201, 223) solid;
+    border-radius: 15px;
+    max-width: 70%;
+    margin: 10px auto;
+    box-shadow: 0 3px 10px rgb(0 0 0 / 0.2);
+}
+
+.input-wrapper {
+    display: flex;
+    align-items: center;
+}
+
+.links {
+    margin-bottom: 5px;
+}
+
+.center {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    width: 50%;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+table td,
+table th {
+    padding-left: 15px;
+    padding-right: 15px;
+    text-align: center;
+}
+
+table tr:nth-child(odd) {
+    background-color: #b8c8ff;
+}
+
+table tr:nth-child(even) {
+    background-color: #cad6ff;
+}
+
+table th {
+    background-color: #7D92DB;
+}
+
+table a {
+    text-decoration: none;
+    color: #727da7;
+}
+
+table a:visited {
+    color: #303b63;
+}
