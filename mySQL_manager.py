@@ -10,7 +10,8 @@ def create_database(host, user, password, database):
             user=user,
             password=password,
             database=database,
-            port=3306
+            port=3306,
+            auth_plugin='mysql_native_password'
         )
         if conn.is_connected():
             cursor = conn.cursor()
@@ -19,36 +20,41 @@ def create_database(host, user, password, database):
             cursor.execute('''
             CREATE TABLE IF NOT EXISTS ytp_playlists (
                 playlist_id INT AUTO_INCREMENT PRIMARY KEY,
-                playlist_name VARCHAR(255),
-                playlist_url VARCHAR(255) UNIQUE
+                playlist_name VARCHAR(255) NOT NULL,
+                playlist_url VARCHAR(255) NOT NULL UNIQUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
             ''')
 
             cursor.execute('''
             CREATE TABLE IF NOT EXISTS ytp_videos (
                 video_id INT AUTO_INCREMENT PRIMARY KEY,
-                video_title VARCHAR(255),
-                video_url VARCHAR(255) UNIQUE,
-                video_length INT
+                video_title VARCHAR(255) NOT NULL,
+                video_url VARCHAR(255) NOT NULL UNIQUE,
+                video_duration INT NOT NULL,
+                uploader VARCHAR(255),
+                uploader_url VARCHAR(255),
+                view_count BIGINT,
+                valid BOOLEAN
             )
             ''')
 
             cursor.execute('''
             CREATE TABLE IF NOT EXISTS ytp_reports (
                 report_id INT AUTO_INCREMENT PRIMARY KEY,
-                report_date DATE,
-                playlist_id INT,
-                FOREIGN KEY (playlist_id) REFERENCES ytp_playlists(playlist_id)
+                report_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                playlist_id INT NOT NULL,
+                FOREIGN KEY (playlist_id) REFERENCES ytp_playlists(playlist_id) ON DELETE CASCADE
             )
             ''')
 
             cursor.execute('''
             CREATE TABLE IF NOT EXISTS ytp_report_details (
                 detail_id INT AUTO_INCREMENT PRIMARY KEY,
-                report_id INT,
-                video_id INT,
-                FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id),
-                FOREIGN KEY (video_id) REFERENCES ytp_videos(video_id)
+                report_id INT NOT NULL,
+                video_id INT NOT NULL,
+                FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id) ON DELETE CASCADE,
+                FOREIGN KEY (video_id) REFERENCES ytp_videos(video_id) ON DELETE CASCADE
             )
             ''')
 
@@ -61,7 +67,7 @@ def create_database(host, user, password, database):
             cursor.close()
             conn.close()
 
-def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations):
+def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl):
     conn = None  # Initialize conn to None
     try:
         conn = mysql.connector.connect(
@@ -69,7 +75,8 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
             user=user,
             password=password,
             database=database,
-            port=3306
+            port=3306,
+            auth_plugin='mysql_native_password'
         )
         if conn.is_connected():
             cursor = conn.cursor()
@@ -92,7 +99,7 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                 playlist_id = cursor.lastrowid
 
             # Add report
-            report_date = datetime.today().strftime('%Y-%m-%d')
+            report_date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
             cursor.execute('''
             INSERT INTO ytp_reports (report_date, playlist_id)
             VALUES (%s, %s)
@@ -100,7 +107,11 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
             report_id = cursor.lastrowid
 
             # Add videos and report details
-            for title, link, length in zip(video_titles, saved_video_links, video_durations):
+            for title, link, length, uploader_row, uploader_url_row, view_count_row, isvalidl_row in zip(video_titles, saved_video_links, video_durations, uploader, uploader_url, view_count, isvalidl):
+                # Ustaw domyślną wartość dla duration, jeśli jest None
+                if length is None:
+                    length = 0  # Domyślna wartość dla duration
+
                 # Check if video already exists
                 cursor.execute('''
                 SELECT video_id FROM ytp_videos WHERE video_url = %s
@@ -112,9 +123,9 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                 else:
                     # Add video
                     cursor.execute('''
-                    INSERT INTO ytp_videos (video_title, video_url, video_length)
-                    VALUES (%s, %s, %s)
-                    ''', (title, link, length))
+                    INSERT INTO ytp_videos (video_title, video_url, video_duration, uploader, uploader_url, view_count, valid)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ''', (title, link, length, uploader_row, uploader_url_row, view_count_row, isvalidl_row))
                     video_id = cursor.lastrowid
 
                 # Add report detail

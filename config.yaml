@@ -1,5 +1,5 @@
 database:
-  host: "localhost"
-  user: "root"
-  password: "password"
+  host: "192.168.0.110"
+  user: "ytpo"
+  password: "Ytpo123!"
   database: "yt-pao"

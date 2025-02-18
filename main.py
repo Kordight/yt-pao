@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 import yaml
 from html_manager import generate_html_list, read_html_template, extract_head_and_body, generate_html_list_invalid_videos
-from mySQL_manager import add_report
+from mySQL_manager import add_report, create_database
 
 def process_playlist_URL(playlist_URL):
     pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
@@ -75,7 +75,7 @@ def compose_text_table(playlist_data, videos):
     return playlist_table, video_table
 
 def load_db_config():
-    with open('config.yml', 'r') as file:
+    with open('config.yaml', 'r') as file:
         config = yaml.safe_load(file)
     return config['database']
 
@@ -126,40 +126,33 @@ def main():
                 for index, video in enumerate(videos):
                     try:
                         video_row = [
-                            index + 1,  # Lp (numer wiersza)
-                            getattr(video, 'title', 'N/A'),  # Tytuł
-                            getattr(video, 'url', 'N/A'),  # URL
-                            getattr(video, 'duration', 'N/A'),  # Czas trwania
-                            getattr(video, 'uploader', 'N/A'),  # Uploader
-                            getattr(video, 'uploader_url', 'N/A'),  # URL uploadera
-                            getattr(video, 'view_count', 'N/A'),  # Liczba wyświetleń
-                            getattr(video, 'valid', 'N/A')  # Czy wideo jest dostępne
+                            index + 1,
+                            getattr(video, 'title', 'N/A'),  
+                            getattr(video, 'url', 'N/A'),
+                            getattr(video, 'duration', 'N/A'), 
+                            getattr(video, 'uploader', 'N/A'), 
+                            getattr(video, 'uploader_url', 'N/A'),  
+                            getattr(video, 'view_count', 'N/A'), 
+                            getattr(video, 'valid', 'N/A')
                         ]
                         writer.writerow(video_row)
                     except AttributeError as e:
                         print(f"Missing attribute in video object: {e}")
-    elif args.resultFormat == "html":
-        if args.listMode == "unavailable":
-            html_list = generate_html_list_invalid_videos(videos, playlist_name, args.playlistLink)
-            html_template = read_html_template('web_template/html_template_backup_removed_report.html')
-            head, body = extract_head_and_body(html_template)
-            page_title = f"Removed videos for Playlist: {playlist_name}"
+        def generate_html_report(args, videos, playlist_name, folder_path, date_time):
             js_code = open('web_template/script_head_template.js', 'r', encoding='utf-8').read()
             css_styles = open('web_template/style_template.css', 'r', encoding='utf-8').read()
-            # Combine everything into a complete HTML structure with custom page title and CSS styles
-            final_html = f"<html><head><title>{page_title}</title><script>{js_code}</script>{head}<style>{css_styles}</style></head><body>{body}{html_list}<footer><h3>Authors:</h3><div class='links'><a href='https://github.com/Kordight'><strong>Kordight</strong></a></div></footer></body></html>"
-            # Write final HTML to file
-            file_path = os.path.join(folder_path, f"{args.listMode}_{date_time}.html")
-            with open(file_path, "w", encoding="utf-8") as file:
-                file.write(final_html)
-            print(f"Saved .html report to: {file_path}")
-        else:
-            html_list = generate_html_list(videos, playlist_name, args.playlistLink)
-            html_template = read_html_template('web_template/html_template_similar_report.html')
+
+            if args.listMode == "unavailable":
+                html_list = generate_html_list_invalid_videos(videos, playlist_name, args.playlistLink)
+                html_template_path = 'web_template/html_template_backup_removed_report.html'
+                page_title = f"Removed videos for Playlist: {playlist_name}"
+            else:
+                html_list = generate_html_list(videos, playlist_name, args.playlistLink)
+                html_template_path = 'web_template/html_template_similar_report.html'
+                page_title = f"Report for Playlist: {playlist_name}"
+
+            html_template = read_html_template(html_template_path)
             head, body = extract_head_and_body(html_template)
-            page_title = f"Report for Playlist: {playlist_name}"
-            css_styles = open('web_template/style_template.css', 'r', encoding='utf-8').read()
-            js_code = open('web_template/script_head_template.js', 'r', encoding='utf-8').read()
 
             final_html = f"""<html>
             <head>
@@ -186,11 +179,17 @@ def main():
 
     elif args.resultFormat == "mySQL":
             db_config = load_db_config()
+            # Dodaj wywołanie create_database przed add_report
+            create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'])
             video_titles = [video.title for video in videos]
             saved_video_links = [video.url for video in videos]
             video_durations = [video.duration for video in videos]
+            uploader = [video.uploader for video in videos]
+            uploader_url = [video.uploader_url for video in videos]
+            view_count = [video.view_count for video in videos]
+            isvalid = [video.valid for video in videos]
             add_report(db_config['host'], db_config['user'], db_config['password'], db_config['database'],
-                    video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations)
+                    video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid)
             print("Report saved to MySQL database.")
 
 if __name__ == "__main__":

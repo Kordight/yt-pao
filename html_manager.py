@@ -54,7 +54,7 @@ def generate_html_list_invalid_videos(deleted_videos, playlist_name, playlist_li
             status = "[Deleted video]"
         else:
             status = "[Unavailable]"
-        
+    
         html_content += f"<tr>"
         html_content += f"<td><a href='{video.url}' target='_blank'>{status}</a></td>"
         html_content += f"<td>{video.url}</td>"
