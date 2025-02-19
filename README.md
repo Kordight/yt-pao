@@ -1,32 +1,74 @@
-# YT-PAO
-Efficient YouTube playlist analyzer & organizer.
+# YT-PAO - YouTube Playlist Analyzer & Organizer
 
-## What is YT-PAO
+YT-PAO is a tool designed to analyze and organize YouTube playlists. It allows you to efficiently extract data from playlists, archive them, track removed videos, and export data in various formats.
 
-YT-PAO is a tool designed to extract data from YouTube playlists. This tool can be used to archive playlists, track removed videos, or simply export playlist data for other purposes.
+## Features
+
+- **Playlist Analysis**: Extract data from YouTube playlists, including titles, URLs, durations, uploaders, view counts, and availability status.
+- **Multiple Output Formats**: Generate reports in `cmd`, `txt`, `json`, `csv`, `html`, or save to a MySQL database.
+- **Work Modes**: Choose between different modes: `all` (all videos), `unavailable` (only unavailable videos), `available` (only available videos).
+- **Archiving**: Create local copies of reports in the `Output` folder, organized by playlist name.
 
 ## Requirements
 
-YT-PAO uses a few external libraries. You can install them with `pip install -r requirements.txt`
+To run YT-PAO, you need Python 3.x and several external libraries. You can install them using:
 
-## Install
+```bash
+pip install -r requirements.txt
+```
 
-To install YT-PAO, simply clone this repository or manually download it from GitHub.
+## Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-repo/YT-PAO.git
+   ```
+2. Navigate to the project directory:
+   ```bash
+   cd YT-PAO
+   ```
+3. Install the required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 ## Usage
 
-Example usage:
+Basic usage of the program:
 
-`python3 main.py --playlistLink --resultFormat --listMode`
+```bash
+python3 main.py --playlistLink <playlist_link> --resultFormat <output_format> --listMode <work_mode>
+```
 
-Flags:
+### Flags
 
-- `--playlistLink` - str input with the YouTube playlist link
-- `--resultFormat` - str input separated by spaces that generates the report in. Expected values: `cmd`, `txt`, `json`, `mySQL`, `csv`
-- `--listMode` - str input specifying the work mode, expected values: `all`, `unavailable`, `available`
+- `--playlistLink`: The link to the YouTube playlist (required).
+- `--resultFormat`: The output format. Available options: `cmd`, `txt`, `json`, `csv`, `html`, `mySQL`.
+- `--listMode`: The work mode. Available options: `all` (all videos), `unavailable` (only unavailable videos), `available` (only available videos).
 
-### Outputs
+### Examples
 
-#### `cmd`
+1. Display results in the console:
+   ```bash
+   python3 main.py --playlistLink https://www.youtube.com/playlist?list=PL1234567890 --resultFormat cmd --listMode all
+   ```
 
-Program will display result in table containing "Title", "URL", "Duration", "Uploader", "Uploader URL", "Approximate View Count", "bValid"
+2. Generate a report in JSON format:
+   ```bash
+   python3 main.py --playlistLink https://www.youtube.com/playlist?list=PL1234567890 --resultFormat json --listMode unavailable
+   ```
+
+3. Save the report to a MySQL database:
+   ```bash
+   python3 main.py --playlistLink https://www.youtube.com/playlist?list=PL1234567890 --resultFormat mySQL --listMode all
+   ```
+
+## File Structure
+
+- `Output/`: Folder where reports are saved. Each playlist has its own subfolder named after the playlist.
+- `web_template/`: HTML and CSS templates used for generating HTML reports.
+- `config.yaml`: Configuration file containing MySQL database connection details.
+
+## Authors
+
+- **Kordight** - [GitHub](https://github.com/Kordight)
