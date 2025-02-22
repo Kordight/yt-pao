@@ -10,9 +10,7 @@ def create_database(host, user, password, database):
             user=user,
             password=password,
             database=database,
-            port=3306,
-            auth_plugin='mysql_native_password'
-        )
+            port=3306)
         if conn.is_connected():
             cursor = conn.cursor()
 
