@@ -73,6 +73,19 @@ def compose_text_table(playlist_data, videos):
 
     video_table = format_table(video_headers, video_rows)
     return playlist_table, video_table
+def generate_config_file():
+    if not os.path.exists('config.yaml'):
+            print("Config file not found. Creating a new one with default settings.")
+            config = {
+        'database': {
+            'host': 'localhost',
+            'user': 'yt-pao',
+            'password': 'password',
+            'database': 'yt-pao'
+        }
+        }
+            with open('config.yaml', 'w') as file:
+                yaml.dump(config, file, default_flow_style=False)
 
 def load_db_config():
     with open('config.yaml', 'r') as file:
