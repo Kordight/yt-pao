@@ -139,8 +139,14 @@ def main():
                     except AttributeError as e:
                         print(f"Missing attribute in video object: {e}")
     elif args.resultFormat == "html":
-            js_code = open('web_template/script_head_template.js', 'r', encoding='utf-8').read()
-            css_styles = open('web_template/style_template.css', 'r', encoding='utf-8').read()
+            with open('web_template/script_head_template.js', 'r', encoding='utf-8') as js_file:
+                js_code = js_file.read()
+            with open('web_template/style_template.css', 'r', encoding='utf-8') as css_file:
+                css_styles = css_file.read()
+            with open('web_template/style_template.css', 'r', encoding='utf-8') as css_file:
+                css_styles = css_file.read()
+
+            import html  # Add import for HTML escaping
 
             if args.listMode == "unavailable":
                 html_list = generate_html_list_invalid_videos(videos, playlist_name, args.playlistLink)
@@ -151,12 +157,15 @@ def main():
                 html_template_path = 'web_template/html_template_backup_report.html'
                 page_title = f"Report for Playlist: {playlist_name}"
 
+            # Escape page_title to prevent HTML injection
+            safe_page_title = html.escape(page_title)
+
             html_template = read_html_template(html_template_path)
             head, body = extract_head_and_body(html_template)
 
             final_html = f"""<html>
             <head>
-                <title>{page_title}</title>
+                <title>{safe_page_title}</title>
                 <script>{js_code}</script>
                 <style>{css_styles}</style>
                 {head}

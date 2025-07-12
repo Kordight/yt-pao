@@ -12,15 +12,14 @@ footer {
 
 a {
     text-decoration: none;
-    color: #203590
+    color: #203590;
 }
 
 a:visited {
-    color: #230462
+    color: #230462;
 }
 
 .border-box {
-    /*text-align: left;*/
     padding: 3vh;
     border: 1px #6083C5 solid;
     border-radius: 15px;
@@ -51,39 +50,68 @@ a:hover {
 }
 
 table {
-    max-width: 75%;
+    width: 80%;
+    margin: 20px auto;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #f7f9fc;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px 0 rgba(96, 131, 197, 0.10);
 }
 
-table td,
-table th {
-    padding-left: 15px;
-    padding-right: 15px;
+table th,
+table td {
+    padding: 18px 22px;
     text-align: center;
-}
-
-table tr:nth-child(odd) {
-    background-color: #b8c8ff;
-}
-
-table tr:nth-child(even) {
-    background-color: #cad6ff;
+    font-size: 1.05em;
 }
 
 table th {
-    background-color: #7D92DB;
+    background: linear-gradient(90deg, #7D92DB 0%, rgb(137 154 233) 100%);
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #6083C5;
+}
+
+table tr {
+    transition: background 0.2s;
+}
+
+table tr:nth-child(even) td {
+    background-color: #e9efff;
+}
+
+table tr:nth-child(odd) td {
+    background-color: #f4f8ff;
+}
+
+table tr:hover td {
+    background-color: #dbe7ff;
+}
+
+table td {
+    border-bottom: 1px solid #e0e7f5;
 }
 
 table a {
-    text-decoration: none;
-    color: #727da7;
+    color: #3a4a8c;
+    text-decoration: underline dotted;
+    transition: color 0.2s;
+}
+
+table a:hover {
+    color: #203590;
+    text-decoration: underline solid;
 }
 
 table a:visited {
-    color: #303b63;
+    color: #5a4a8c;
 }
 
 table.playlist-overview a,
 table.playlist-overview a:visited {
-    max-width: 65%;
     color: #484e69;
+    max-width: 65%;
 }
