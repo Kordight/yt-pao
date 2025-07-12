@@ -1,78 +1,88 @@
 body {
-    font-family: 'Trebuchet MS', sans-serif;
+    font-family: 'Segoe UI', 'Trebuchet MS', Arial, sans-serif;
     margin: 0;
-    margin-top: 15px;
-    background-color: #f3f3f2;
+    background: linear-gradient(120deg, #e0e7ff 0%, #f8fafc 100%);
+    color: #232946;
 }
 
 footer {
     text-align: center;
     margin-bottom: 25px;
+    color: #6b7280;
 }
 
 a {
     text-decoration: none;
-    color: #203590;
-}
-
-a:visited {
-    color: #230462;
-}
-
-.border-box {
-    padding: 3vh;
-    border: 1px #6083C5 solid;
-    border-radius: 15px;
-    max-width: 70%;
-    margin: 10px auto;
-    box-shadow: 0 3px 10px rgb(0 0 0 / 0.1);
-    background-color: #f4f8f9;
-}
-
-.input-wrapper {
-    display: flex;
-    align-items: center;
-}
-
-.links {
-    margin-bottom: 5px;
-}
-
-.center {
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-    width: 50%;
+    color: #3b5bdb;
+    transition: color 0.2s;
+    word-break: break-all;
 }
 
 a:hover {
+    color: #232946;
     text-decoration: underline;
 }
 
+a:visited {
+    color: #7c3aed;
+}
+
+.border-box {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(6px);
+    border-radius: 18px;
+    box-shadow: 0 6px 32px 0 rgba(60, 72, 100, 0.10);
+    max-width: 75vh;
+    margin: 32px auto;
+    padding: 2.5rem 2rem;
+    border: 1px solid #e0e7ff;
+}
+
+h1,
+h2 {
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #232946;
+    margin-bottom: 0.5em;
+}
+
+h1 {
+    font-size: 2.1em;
+}
+
+h2 {
+    font-size: 1.3em;
+}
+
+p {
+    color: #4b5563;
+    line-height: 1.6;
+}
+
 table {
-    width: 80%;
-    margin: 20px auto;
+    width: 100%;
+    margin: 24px 0;
     border-collapse: separate;
     border-spacing: 0;
-    background: #f7f9fc;
-    border-radius: 16px;
+    background: rgba(245, 247, 255, 0.95);
+    border-radius: 14px;
     overflow: hidden;
-    box-shadow: 0 4px 24px 0 rgba(96, 131, 197, 0.10);
+    box-shadow: 0 2px 12px 0 rgba(96, 131, 197, 0.08);
 }
 
 table th,
 table td {
-    padding: 18px 22px;
-    text-align: center;
-    font-size: 1.05em;
+    padding: 16px 18px;
+    text-align: left;
+    font-size: 1em;
 }
 
 table th {
-    background: linear-gradient(90deg, #7D92DB 0%, rgb(137 154 233) 100%);
+    background: linear-gradient(90deg, #90a9e0 0%, #a8baf4 50%, #90a9e0 100%);
     color: #fff;
     font-weight: 600;
-    letter-spacing: 0.5px;
     border-bottom: 2px solid #6083C5;
+    letter-spacing: 0.5px;
 }
 
 table tr {
@@ -80,15 +90,15 @@ table tr {
 }
 
 table tr:nth-child(even) td {
-    background-color: #e9efff;
+    background-color: #f3f6ff;
 }
 
 table tr:nth-child(odd) td {
-    background-color: #f4f8ff;
+    background-color: #f8fafc;
 }
 
 table tr:hover td {
-    background-color: #dbe7ff;
+    background-color: #e0e7ff;
 }
 
 table td {
@@ -97,24 +107,74 @@ table td {
 
 table th:first-child,
 table td:first-child {
-    width: 25%;
-    text-align: left;
+    width: 32%;
+    font-weight: 500;
+    color: #3b5bdb;
 }
 
 table th:not(:first-child),
 table td:not(:first-child) {
-    width: 75%;
+    width: 68%;
 }
 
 table a {
-    color: #3a4a8c;
+    color: #3b5bdb;
     text-decoration: underline dotted;
     transition: color 0.2s;
 }
 
 table a:hover {
-    color: #203590;
+    color: #232946;
     text-decoration: underline solid;
+}
+
+table a:visited {
+    color: #7c3aed;
+}
+
+table.playlist-overview a,
+table.playlist-overview a:visited,
+table.playlist-overview a:hover {
+    color: #484e69 !important;
+}
+
+ol {
+    padding-left: 1.2em;
+    margin: 0;
+}
+
+ol li {
+    margin-bottom: 0.5em;
+    font-size: 1.05em;
+    background: rgba(245, 247, 255, 0.7);
+    border-radius: 8px;
+    padding: 0.4em 0.8em;
+    transition: background 0.2s;
+}
+
+ol li:hover {
+    background: #e0e7ff;
+}
+
+@media (max-width: 800px) {
+    .border-box {
+        max-width: 98vw;
+        padding: 1.2rem 0.5rem;
+    }
+
+    table th,
+    table td {
+        padding: 10px 6px;
+        font-size: 0.97em;
+    }
+
+    h1 {
+        font-size: 1.3em;
+    }
+
+    h2 {
+        font-size: 1.1em;
+    }
 }
 
 table a:visited {
