@@ -67,6 +67,19 @@ def create_database(host, user, password, database):
                 )
             ''')
 
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS ytp_video_details (
+                    change_id INT AUTO_INCREMENT PRIMARY KEY,
+                    video_id INT,
+                    view_count BIGINT,
+                    avaliability TINYINT,
+                    change_type ENUM('description', 'title', 'views', 'availability') NOT NULL,
+                    change_value TEXT NOT NULL,
+                    FOREIGN KEY (video_id) REFERENCES ytp_videos(video_id)
+                        ON DELETE CASCADE ON UPDATE CASCADE
+                )
+            ''')
+
             conn.commit()
             
     except Error as e:
