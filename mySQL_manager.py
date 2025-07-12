@@ -56,6 +56,17 @@ def create_database(host, user, password, database):
             )
             ''')
 
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS ytp_playlist_details (
+                    change_id INT AUTO_INCREMENT PRIMARY KEY,
+                    report_id INT,
+                    change_type ENUM('description', 'title') NOT NULL,
+                    change_value TEXT NOT NULL,
+                    FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id)
+                        ON DELETE CASCADE ON UPDATE CASCADE
+                )
+            ''')
+
             conn.commit()
             
     except Error as e:
@@ -65,7 +76,7 @@ def create_database(host, user, password, database):
             cursor.close()
             conn.close()
 
-def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl):
+def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description):
     conn = None  # Initialize conn to None
     try:
         conn = mysql.connector.connect(
@@ -130,6 +141,38 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                 INSERT INTO ytp_report_details (report_id, video_id)
                 VALUES (%s, %s)
                 ''', (report_id, video_id))
+
+                # Find last known playlist title for this playlist before current report
+                cursor.execute('''
+                    SELECT d.change_value
+                    FROM ytp_reports r
+                    JOIN ytp_playlist_details d ON r.report_id = d.report_id
+                    WHERE r.playlist_id = %s AND d.change_type = 'title' AND r.report_id < %s
+                    ORDER BY r.report_id DESC
+                    LIMIT 1
+                ''', (playlist_id, report_id))
+
+                previous_title = cursor.fetchone()
+
+                # Find last known playlist description for this playlist before current report
+
+                cursor.execute('''
+                    SELECT d.change_value
+                    FROM ytp_reports r
+                    JOIN ytp_playlist_details d ON r.report_id = d.report_id
+                    WHERE r.playlist_id = %s AND d.change_type = 'description' AND r.report_id < %s
+                    ORDER BY r.report_id DESC
+                    LIMIT 1
+                ''', (playlist_id, report_id))
+
+                previous_name = cursor.fetchone()
+
+                # If title doesn't exist or has changed, insert new title record
+                if not previous_name or previous_name[0] != playlist_description:
+                    cursor.execute('''
+                        INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
+                        VALUES (%s, 'title', %s)
+                    ''', (report_id, playlist_description))
 
             conn.commit()
     except Error as e:
