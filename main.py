@@ -73,6 +73,19 @@ def compose_text_table(playlist_data, videos):
 
     video_table = format_table(video_headers, video_rows)
     return playlist_table, video_table
+def generate_config_file():
+    if not os.path.exists('config.yaml'):
+            print("Config file not found. Creating a new one with default settings.")
+            config = {
+        'database': {
+            'host': 'localhost',
+            'user': 'yt-pao',
+            'password': 'password',
+            'database': 'yt_pao_db'
+        }
+        }
+            with open('config.yaml', 'w') as file:
+                yaml.dump(config, file, default_flow_style=False)
 
 def load_db_config():
     with open('config.yaml', 'r') as file:
@@ -84,6 +97,7 @@ def main():
     args = parse_args()
     playlist_data, videos = parse_playlist(process_playlist_URL(args.playlistLink), args.listMode)
     playlist_name = playlist_data['playlist_name']
+    playlist_description = playlist_data['description']
     folder_path = f"Output/{playlist_name}"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
@@ -197,7 +211,7 @@ def main():
             view_count = [video.view_count for video in videos]
             isvalid = [video.valid for video in videos]
             add_report(db_config['host'], db_config['user'], db_config['password'], db_config['database'],
-                    video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid)
+                    video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description)
             print("Report saved to MySQL database.")
 
 if __name__ == "__main__":

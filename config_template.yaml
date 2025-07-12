@@ -1,5 +1,0 @@
-database:
-  host: "localhost"
-  user: "yt-pao"
-  password: "password"
-  database: "yt-pao"
