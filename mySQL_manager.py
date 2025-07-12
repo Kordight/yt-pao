@@ -142,7 +142,7 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                 VALUES (%s, %s)
                 ''', (report_id, video_id))
 
-                # Find last known playlist title for this playlist before current report
+                # Pobierz poprzedni tytuł playlisty
                 cursor.execute('''
                     SELECT d.change_value
                     FROM ytp_reports r
@@ -151,11 +151,9 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                     ORDER BY r.report_id DESC
                     LIMIT 1
                 ''', (playlist_id, report_id))
-
                 previous_title = cursor.fetchone()
 
-                # Find last known playlist description for this playlist before current report
-
+                # Pobierz poprzedni opis playlisty
                 cursor.execute('''
                     SELECT d.change_value
                     FROM ytp_reports r
@@ -164,15 +162,22 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                     ORDER BY r.report_id DESC
                     LIMIT 1
                 ''', (playlist_id, report_id))
+                previous_description = cursor.fetchone()
 
-                previous_name = cursor.fetchone()
-
-                # If title doesn't exist or has changed, insert new title record
-                if not previous_name or previous_name[0] != playlist_description:
+                # Jeśli tytuł się zmienił, wstaw nowy rekord
+                if not previous_title or previous_title[0] != playlist_name:
                     cursor.execute('''
                         INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
                         VALUES (%s, 'title', %s)
+                    ''', (report_id, playlist_name))
+
+                # Jeśli opis się zmienił, wstaw nowy rekord
+                if not previous_description or previous_description[0] != playlist_description:
+                    cursor.execute('''
+                        INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
+                        VALUES (%s, 'description', %s)
                     ''', (report_id, playlist_description))
+
 
             conn.commit()
     except Error as e:

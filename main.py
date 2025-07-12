@@ -84,6 +84,7 @@ def main():
     args = parse_args()
     playlist_data, videos = parse_playlist(process_playlist_URL(args.playlistLink), args.listMode)
     playlist_name = playlist_data['playlist_name']
+    playlist_description = playlist_data['description']
     folder_path = f"Output/{playlist_name}"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
