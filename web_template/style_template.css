@@ -111,12 +111,12 @@ table td:first-child {
     font-weight: 500;
     color: #3b5bdb;
 }
-
+/*
 table th:not(:first-child),
 table td:not(:first-child) {
-    width: 68%;
+    width: 45%;
 }
-
+*/
 table a {
     color: #3b5bdb;
     text-decoration: underline dotted;
