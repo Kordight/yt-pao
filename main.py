@@ -147,7 +147,7 @@ def main():
                 html_template_path = 'web_template/html_template_backup_removed_report.html'
                 page_title = f"Removed videos for Playlist: {playlist_name}"
             else:
-                html_list = generate_html_list(videos, playlist_name, args.playlistLink)
+                html_list = generate_html_list(videos, playlist_name, playlist_data['url'], playlist_data)
                 html_template_path = 'web_template/html_template_backup_report.html'
                 page_title = f"Report for Playlist: {playlist_name}"
 
