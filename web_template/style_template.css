@@ -75,3 +75,9 @@ table a {
 table a:visited {
     color: #303b63;
 }
+
+table.playlist-overview a,
+table.playlist-overview a:visited {
+    max-width: 65%;
+    color: #484e69;
+}
