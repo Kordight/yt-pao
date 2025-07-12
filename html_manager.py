@@ -9,7 +9,7 @@ def generate_html_duplicate_list(songs, playlist_name, playlist_url):
         html_content += f"<li><a href='{song1.url}' target='_blank'>{song1.title}</a> is similar to: <a href='{song2.url}' target='_blank'>{song2.title}</a> by: {song2.similarity if song2.similarity else ''}</li><br>"
     html_content += "</ol></div>"
     return html_content
-
+# Function to generate HTML code for the playlist and video data
 def generate_html_list(songs, playlist_name, playlist_url, playlist_data=None):
     # Sort songs alphabetically by title
     songs_sorted = sorted(songs, key=lambda song: song.title.lower())
@@ -24,9 +24,9 @@ def generate_html_list(songs, playlist_name, playlist_url, playlist_data=None):
         "<div class='border-box'>"
         "<h1>Playlist backup</h1><br>"
         "<h2><a href='"+str(playlist_url)+"'>"+str(playlist_name)+"</a></h2><br>"
+        "<h3>Playlist Overview:</h3>"
         f"{playlist_overview_table}"
-        "<p>Found: <b>" + str(song_amount) + "</b> videos in this playlist.<br>"
-        "<i title='Y-M-D'>Date: "+str(today)+"</i></p><br>"
+        "<h3>List of songs:</h3>"
         "<ol>"
     )
     for song in songs_sorted:
@@ -38,7 +38,7 @@ def generate_html_list_invalid_videos(deleted_videos, playlist_name, playlist_li
     song_amount = len(deleted_videos)
     html_content = (
         "<div class='border-box'>"
-        "<h1>Playlist backup</h1><br>"
+        "<h1>Playlist backup</h1>"
         "<h2><a href='"+str(playlist_link)+"'>"+str(playlist_name)+"</a></h2><br>"
         "<p>Found: <b>" + str(song_amount) + "</b> videos in this playlist.<br>"
         "<i title='Y-M-D'>Date: "+str(today)+"</i></p><br>"
@@ -94,6 +94,7 @@ def generate_html_playlist_overview_table(playlist_data):
 
     # Mapowanie kluczy na czytelne etykiety
     key_labels = {
+        "report_date": "Report Date",
         "playlist_name": "Playlist Name",
         "playlist_id": "Playlist ID",
         "description": "Description",
@@ -107,7 +108,7 @@ def generate_html_playlist_overview_table(playlist_data):
 
     playlist_data_display = dict(playlist_data)
     playlist_data_display["Total Duration"] = calculate_total_duration(playlist_data)
-
+    playlist_data_display["report_date"] = today  # Set current date as report date
     playlist_headers = ["Key", "Value"]
     html = "<table class='playlist-overview'>"
     html += "<tr>" + "".join(f"<th>{header}</th>" for header in playlist_headers) + "</tr>"
