@@ -15,6 +15,8 @@ def generate_html_list(songs, playlist_name, playlist_url):
     songs_sorted = sorted(songs, key=lambda song: song.title.lower())
     
     song_amount = len(songs_sorted)
+    # Generate HTML content
+
     html_content = (
         "<div class='border-box'>"
         "<h1>Playlist backup</h1><br>"

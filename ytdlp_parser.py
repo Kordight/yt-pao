@@ -30,16 +30,6 @@ def get_playlist_content(playlist_link, ydl_opts):
             return None, []
 
     video_entries = playlist_dict.get('entries', [])
-    playlist_data = {
-        'playlist_name': playlist_dict.get('title', 'Unknown Playlist'),
-        'video_entries': len(video_entries),
-        'description': playlist_dict.get('description', 'No description available'),
-        'playlist_id': playlist_dict.get('id', 'Unknown ID'),
-        'uploader': playlist_dict.get('uploader', 'Unknown uploader'),
-        'uploader_url': playlist_dict.get('uploader_url', 'Unknown uploader'),
-        'url': playlist_dict.get('webpage_url', playlist_link)  
-    }
-
     videos = []
     for entry in video_entries:
         video_title = entry.get('title', 'Unknown Title')
@@ -49,7 +39,17 @@ def get_playlist_content(playlist_link, ydl_opts):
         video_uploader_url = entry.get('uploader_url', 'Unknown')
         video_view_count = entry.get('view_count', 0)  
         videos.append(Video(video_title, video_url, video_duration, video_uploader, video_view_count, video_uploader_url))
-
+    playlist_duration = sum(entry.get('duration', 0) for entry in video_entries)
+    playlist_data = {
+        'playlist_name': playlist_dict.get('title', 'Unknown Playlist'),
+        'video_entries': len(video_entries),
+        'description': playlist_dict.get('description', 'No description available'),
+        'playlist_id': playlist_dict.get('id', 'Unknown ID'),
+        'uploader': playlist_dict.get('uploader', 'Unknown uploader'),
+        'uploader_url': playlist_dict.get('uploader_url', 'Unknown URL'),
+        'url': playlist_dict.get('webpage_url', playlist_link),  
+        'playlist_duration': playlist_duration
+    }
     return playlist_data, videos
 
 
@@ -133,3 +133,34 @@ def parse_playlist(url, listMode):
 
     else:
         raise ValueError(f"Invalid listMode: {listMode}")
+def calculate_total_duration(playlist_data):
+    THREE_DAYS_IN_SECONDS = 3 * 24 * 3600
+    total_seconds = playlist_data.get('playlist_duration', 0)
+    if not isinstance(total_seconds, int):
+        try:
+            total_seconds = int(total_seconds)
+        except Exception:
+            total_seconds = 0
+
+    # Format total duration
+    if total_seconds >= THREE_DAYS_IN_SECONDS:
+        days = total_seconds // (24 * 3600)
+        hours = (total_seconds % (24 * 3600)) // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        total_duration_str = f"{days}d {hours}h {minutes}m {seconds}s"
+        return total_duration_str
+    elif total_seconds >= 3600:
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        total_duration_str = f"{hours}h {minutes}m {seconds}s"
+        return total_duration_str
+    elif total_seconds > 0:
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        total_duration_str = f"{minutes}m {seconds}s"
+        return total_duration_str
+    else:
+        total_duration_str = "N/A"
+        return total_duration_str

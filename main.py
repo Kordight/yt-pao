@@ -1,7 +1,7 @@
 import argparse
 import re
 import sys
-from ytdlp_parser import parse_playlist
+from ytdlp_parser import parse_playlist, calculate_total_duration
 import os
 from datetime import datetime
 import yaml
@@ -43,19 +43,20 @@ def format_table(headers, rows):
     return f"{header_row}\n{separator}\n{data_rows}"
 
 def compose_text_table(playlist_data, videos):
-    # Ensure playlist_data is a dictionary and playlist_data.items() works
+    # Use playlist_duration from playlist_data if available
+    total_duration_str = calculate_total_duration(playlist_data)
+    # Copy playlist_data to avoid mutating the original
+    playlist_data_display = dict(playlist_data)
+    playlist_data_display["Total Duration"] = total_duration_str
+
     playlist_headers = ["Key", "Value"]
-    playlist_rows = list(playlist_data.items())  # Assuming playlist_data is a dictionary
+    playlist_rows = list(playlist_data_display.items())
     playlist_table = format_table(playlist_headers, playlist_rows)
 
-    # Ensure videos is a list of objects with required attributes
     video_headers = ["Lp", "Title", "URL", "Duration", "Uploader", "Uploader URL", "Approximate View Count", "bValid"]
-    
-    # Safely access video attributes and handle missing ones
     video_rows = []
     for index, video in enumerate(videos):
         try:
-            # Gather required fields from the video object
             video_row = [
                 index + 1,
                 getattr(video, 'title', 'N/A'),
@@ -69,8 +70,7 @@ def compose_text_table(playlist_data, videos):
             video_rows.append(video_row)
         except AttributeError as e:
             print(f"Missing attribute in video object: {e}")
-    
-    # Format table for videos
+
     video_table = format_table(video_headers, video_rows)
     return playlist_table, video_table
 
@@ -164,10 +164,6 @@ def main():
             <body>
                 {body}
                 {html_list}
-                <footer>
-                    <h3>Authors:</h3>
-                    <div class='links'><a href='https://github.com/Kordight'><strong>Kordight</strong></a></div>
-                </footer>
             </body>
             </html>"""
 
