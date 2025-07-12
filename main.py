@@ -93,6 +93,7 @@ def load_db_config():
     return config['database']
 
 def main():
+    generate_config_file()
     date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     args = parse_args()
     playlist_data, videos = parse_playlist(process_playlist_URL(args.playlistLink), args.listMode)
