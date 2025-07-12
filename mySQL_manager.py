@@ -70,15 +70,17 @@ def create_database(host, user, password, database):
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS ytp_video_details (
                     change_id INT AUTO_INCREMENT PRIMARY KEY,
-                    video_id INT,
-                    report_id INT,
+                    video_id INT NOT NULL,
+                    report_id INT NOT NULL,
                     change_type ENUM('title', 'views', 'availability') NOT NULL,
                     change_value TEXT NOT NULL,
                     FOREIGN KEY (video_id) REFERENCES ytp_videos(video_id)
                         ON DELETE CASCADE ON UPDATE CASCADE,
-                           FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id) ON DELETE CASCADE ON UPDATE CASCADE
+                    FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id)
+                        ON DELETE CASCADE ON UPDATE CASCADE
                 )
             ''')
+
             cursor.execute("""
                 SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
                 WHERE TABLE_NAME = 'ytp_video_details' AND TABLE_SCHEMA = DATABASE()
@@ -156,9 +158,9 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
     
     if not last_title or last_title[0] != video_title:
         cursor.execute('''
-            INSERT INTO ytp_video_details (video_id, change_type, change_value)
-            VALUES (%s, 'title', %s)
-        ''', (video_id, video_title))
+            INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value)
+            VALUES (%s, %s, %s, %s)
+        ''', (video_id, report_id, 'title', video_title))
     
     # Check if view count changed
     cursor.execute('''
@@ -173,8 +175,8 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
     if not last_view_count or not last_view_count[0].isdigit() or int(last_view_count[0]) != view_count:
         cursor.execute('''
             INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value)
-            VALUES (%s, %s, 'views', %s)
-        ''', (video_id, report_id, str(view_count)))
+            VALUES (%s, %s, %s, %s)
+        ''', (video_id, report_id, 'views', str(view_count)))
 
     # Check if availability changed
     cursor.execute('''
@@ -186,12 +188,12 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
     ''', (video_id,))
     last_availability = cursor.fetchone()
     
-    # Assume availability stored as string 'True'/'False' or '1'/'0'
     if not last_availability or last_availability[0] != str(availability):
         cursor.execute('''
-            INSERT INTO ytp_video_details (video_id, change_type, change_value, report_id)
-            VALUES (%s, 'availability', %s, %s)
-        ''', (video_id, str(availability), report_id))
+            INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value)
+            VALUES (%s, %s, %s, %s)
+        ''', (video_id, report_id, 'availability', str(availability)))
+
 
 
     

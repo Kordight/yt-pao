@@ -191,7 +191,6 @@ def main():
             db_config = load_db_config()
             create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'])
             video_titles = [video.title for video in videos]
-            print(len(video_titles))
             saved_video_links = [video.url for video in videos]
             video_durations = [video.duration for video in videos]
             uploader = [video.uploader for video in videos]
