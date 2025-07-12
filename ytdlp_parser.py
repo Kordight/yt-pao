@@ -39,8 +39,11 @@ def get_playlist_content(playlist_link, ydl_opts):
         video_uploader_url = entry.get('uploader_url', 'Unknown')
         video_view_count = entry.get('view_count', 0)  
         videos.append(Video(video_title, video_url, video_duration, video_uploader, video_view_count, video_uploader_url))
-    playlist_duration = sum(entry.get('duration', 0) for entry in video_entries)
-    playlist_data = {
+        playlist_duration = sum(
+            entry['duration'] if isinstance(entry.get('duration'), (int, float)) else 0
+            for entry in video_entries
+        )    
+        playlist_data = {
         'playlist_name': playlist_dict.get('title', 'Unknown Playlist'),
         'video_entries': len(video_entries),
         'description': playlist_dict.get('description', 'No description available'),
