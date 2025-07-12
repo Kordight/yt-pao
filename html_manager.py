@@ -1,4 +1,7 @@
 from datetime import datetime
+from ytdlp_parser import calculate_total_duration
+
+#Global variable to store the current date
 today = datetime.today().strftime("%Y-%m-%d (%H:%M)")
 
 # Function to generate HTML code for the list of similar songs
@@ -33,7 +36,7 @@ def generate_html_list(songs, playlist_name, playlist_url, playlist_data=None):
         html_content += f"<li><a href='{song.url}' target='_blank'>{song.title}</a></li><br>"
     html_content += "</ol></div>"
     return html_content
-
+# Function to generate HTML code for the list of invalid videos
 def generate_html_list_invalid_videos(deleted_videos, playlist_name, playlist_link):
     song_amount = len(deleted_videos)
     html_content = (
@@ -67,13 +70,12 @@ def generate_html_list_invalid_videos(deleted_videos, playlist_name, playlist_li
     html_content += "</table></div>"
     
     return html_content
-
-
+# Function to read HTML template from a file
 def read_html_template(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         html_content = file.read()
     return html_content
-
+# Function that splits the HTML content into head and body sections
 def extract_head_and_body(html_content):
     head_start = html_content.find('<head>') + len('<head>')
     head_end = html_content.find('</head>')
@@ -84,15 +86,14 @@ def extract_head_and_body(html_content):
     body = html_content[body_start:body_end].strip()
     
     return head, body
-def load_js_code_from_file(file_path):
+# Function to load JavaScript code from a file 
+def load_js_code_from_file(file_path): #To do: Add JS features to YT-PAO
     with open(file_path, 'r', encoding='utf-8') as file:
         js_content = file.read()
     return js_content
-
+# Function that return HTML code for the playlist overview table
 def generate_html_playlist_overview_table(playlist_data):
-    from ytdlp_parser import calculate_total_duration
-
-    # Mapowanie kluczy na czytelne etykiety
+    # Mapo keys to labels for better readability
     key_labels = {
         "report_date": "Report Date",
         "playlist_name": "Playlist Name",
@@ -105,11 +106,13 @@ def generate_html_playlist_overview_table(playlist_data):
         "video_entries": "Number of Videos",
         "Total Duration": "Total Duration"
     }
-
+    # Prepare the playlist data for display
     playlist_data_display = dict(playlist_data)
+    # Add total duration and report date to the playlist_data_display
     playlist_data_display["Total Duration"] = calculate_total_duration(playlist_data)
     playlist_data_display["report_date"] = today  # Set current date as report date
     playlist_headers = ["Key", "Value"]
+    # Generate HTML table for playlist overview
     html = "<table class='playlist-overview'>"
     html += "<tr>" + "".join(f"<th>{header}</th>" for header in playlist_headers) + "</tr>"
     for key, value in playlist_data_display.items():
