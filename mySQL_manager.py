@@ -235,6 +235,7 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
             VALUES (%s, %s)
             ''', (report_date, playlist_id))
             report_id = cursor.lastrowid
+            update_playlist_metadata_if_changed(cursor, playlist_url, report_id, playlist_name, playlist_description)
 
             # Add videos and report details
             for title, link, length, uploader_row, uploader_url_row, view_count_row, isvalid_row in zip(video_titles, saved_video_links, video_durations, uploader, uploader_url, view_count, isvalidl):
@@ -264,9 +265,6 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                 ''', (report_id, video_id))
                 # Update video metadata if it has changed
                 update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id)
-
-                update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description)
-
 
             conn.commit()
     except Error as e:
