@@ -81,7 +81,7 @@ def generate_config_file():
             'host': 'localhost',
             'user': 'yt-pao',
             'password': 'password',
-            'database': 'yt-pao'
+            'database': 'yt_pao_db'
         }
         }
             with open('config.yaml', 'w') as file:
