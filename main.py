@@ -164,6 +164,10 @@ def main():
             <body>
                 {body}
                 {html_list}
+                <footer>
+                    <h3>Authors:</h3>
+                    <div class='links'><a href='https://github.com/Kordight'><strong>Kordight</strong></a></div>
+                </footer>
             </body>
             </html>"""
 
