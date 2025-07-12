@@ -235,7 +235,7 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
             VALUES (%s, %s)
             ''', (report_date, playlist_id))
             report_id = cursor.lastrowid
-            update_playlist_metadata_if_changed(cursor, playlist_url, report_id, playlist_name, playlist_description)
+            update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description)
 
             # Add videos and report details
             for title, link, length, uploader_row, uploader_url_row, view_count_row, isvalid_row in zip(video_titles, saved_video_links, video_durations, uploader, uploader_url, view_count, isvalidl):
