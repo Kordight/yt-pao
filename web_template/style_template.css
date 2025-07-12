@@ -95,6 +95,17 @@ table td {
     border-bottom: 1px solid #e0e7f5;
 }
 
+table th:first-child,
+table td:first-child {
+    width: 25%;
+    text-align: left;
+}
+
+table th:not(:first-child),
+table td:not(:first-child) {
+    width: 75%;
+}
+
 table a {
     color: #3a4a8c;
     text-decoration: underline dotted;
