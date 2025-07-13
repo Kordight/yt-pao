@@ -2,6 +2,12 @@ import mysql.connector
 from mysql.connector import Error
 from datetime import datetime
 
+def normalize_view_count(view_count):
+    try:
+        return int(view_count)
+    except (TypeError, ValueError):
+        return 0
+
 def create_database(host, user, password, database):
     conn = None  # Initialize conn to None
     try:
@@ -162,6 +168,8 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
             VALUES (%s, %s, %s, %s)
         ''', (video_id, report_id, 'title', video_title))
     
+    normalized_view_count = int(normalize_view_count(view_count))
+
     # Check if view count changed
     cursor.execute('''
         SELECT change_value 
@@ -171,12 +179,14 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
         LIMIT 1
     ''', (video_id,))
     last_view_count = cursor.fetchone()
-    
-    if not last_view_count or not last_view_count[0].isdigit() or int(last_view_count[0]) != view_count:
+
+    # If last_view_count is None, it means this is the first time we're inserting a view count for this video
+    if not last_view_count or not last_view_count[0].isdigit() or int(last_view_count[0]) != normalized_view_count:
         cursor.execute('''
             INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value)
             VALUES (%s, %s, %s, %s)
-        ''', (video_id, report_id, 'views', str(view_count)))
+        ''', (video_id, report_id, 'views', normalized_view_count))
+        #print(f"Updated view count for video {video_id} to {normalized_view_count}, because it changed from {last_view_count[0] if last_view_count else 'None'} to {normalized_view_count}; last_view_count: {last_view_count[0] if last_view_count else 'None'}")
 
     # Check if availability changed
     cursor.execute('''
