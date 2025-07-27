@@ -165,3 +165,4 @@ cython_debug/
 # Ignore config file
 config.yaml
 
+.DS_Store
