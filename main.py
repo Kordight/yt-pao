@@ -18,6 +18,15 @@ def process_playlist_URL(playlist_URL):
     print("Error: URL is not YouTube playlist URL!", file=sys.stderr)
     sys.exit(1)
 
+def get_playlist_id(playlist_URL):
+    pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
+    match = re.search(pattern, playlist_URL)
+    if match:
+        return match.group(1)
+    else:
+        print("Error: Unable to extract playlist ID from URL!", file=sys.stderr)
+        sys.exit(1)
+
 def parse_args():
     # Create the argument parser
     parser = argparse.ArgumentParser(description="Interpretation of flags and YouTube playlist link.")
@@ -99,7 +108,7 @@ def main():
     playlist_data, videos = parse_playlist(process_playlist_URL(args.playlistLink), args.listMode)
     playlist_name = playlist_data['playlist_name']
     playlist_description = playlist_data['description']
-    folder_path = f"Output/{playlist_name}"
+    folder_path = f"Output/{playlist_name}_{get_playlist_id(playlist_data['url'])}"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     print(f"YouTube playlist link: {args.playlistLink}")
