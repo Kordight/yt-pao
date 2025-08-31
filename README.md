@@ -69,6 +69,60 @@ python3 main.py --playlistLink <playlist_link> --resultFormat <output_format> --
 - `web_template/`: HTML and CSS templates used for generating HTML reports.
 - `config.yaml`: Configuration file containing MySQL database connection details.
 
+## Comparing Playlists / Detecting Missing Videos
+
+### mySQL
+yt-pao allows you to compare the latest reports of multiple playlists to identify which videos are missing from one playlist relative to another. This is useful if you want to track differences between playlists over time or across similar playlists.
+
+The comparison works by selecting the latest reports for each playlist and then performing a set difference on the videos. For example, the following SQL snippet demonstrates how the database identifies videos present in Playlist `2` but missing in Playlist `19`, and vice versa:
+```mysql
+WITH last_reports AS (
+    SELECT r.playlist_id, r.report_id
+    FROM ytp_reports r
+    INNER JOIN (
+        SELECT playlist_id, MAX(report_date) AS max_date
+        FROM ytp_reports
+        WHERE playlist_id IN (2, 19)
+        GROUP BY playlist_id
+    ) latest
+      ON r.playlist_id = latest.playlist_id
+     AND r.report_date = latest.max_date
+),
+videos_in_playlists AS (
+    SELECT rd.video_id, v.video_title, v.video_url, r.playlist_id
+    FROM ytp_report_details rd
+    JOIN ytp_reports r ON rd.report_id = r.report_id
+    JOIN ytp_videos v ON rd.video_id = v.video_id
+    WHERE r.report_id IN (SELECT report_id FROM last_reports)
+)
+
+-- Videos in Playlist 2 missing from Playlist 19
+SELECT 
+    v2.video_id,
+    v2.video_title,
+    v2.video_url,
+    2 AS playlist_source
+FROM (SELECT * FROM videos_in_playlists WHERE playlist_id = 2) v2
+LEFT JOIN (SELECT * FROM videos_in_playlists WHERE playlist_id = 19) v19
+       ON v2.video_id = v19.video_id
+WHERE v19.video_id IS NULL
+
+UNION
+
+-- Videos in Playlist 19 missing from Playlist 2
+SELECT 
+    v19.video_id,
+    v19.video_title,
+    v19.video_url,
+    19 AS playlist_source
+FROM (SELECT * FROM videos_in_playlists WHERE playlist_id = 19) v19
+LEFT JOIN (SELECT * FROM videos_in_playlists WHERE playlist_id = 2) v2
+       ON v19.video_id = v2.video_id
+WHERE v2.video_id IS NULL;
+```
+
+This feature essentially performs a diff between playlists, giving you a clear overview of which videos are unique to each playlist.
+
 ## Authors
 
 - **Kordight** - [GitHub](https://github.com/Kordight)
