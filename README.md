@@ -76,13 +76,16 @@ yt-pao allows you to compare the latest reports of multiple playlists to identif
 
 The comparison works by selecting the latest reports for each playlist and then performing a set difference on the videos. For example, the following SQL snippet demonstrates how the database identifies videos present in Playlist `2` but missing in Playlist `19`, and vice versa:
 ```mysql
-WITH last_reports AS (
+WITH params AS (
+    SELECT 2 AS p1, 19 AS p2 -- Replace 2 and 19 with your playlist IDs
+),
+last_reports AS (
     SELECT r.playlist_id, r.report_id
     FROM ytp_reports r
     INNER JOIN (
         SELECT playlist_id, MAX(report_date) AS max_date
-        FROM ytp_reports
-        WHERE playlist_id IN (2, 19)
+        FROM ytp_reports, params
+        WHERE playlist_id IN (SELECT p1 FROM params UNION SELECT p2 FROM params)
         GROUP BY playlist_id
     ) latest
       ON r.playlist_id = latest.playlist_id
@@ -96,29 +99,30 @@ videos_in_playlists AS (
     WHERE r.report_id IN (SELECT report_id FROM last_reports)
 )
 
--- Videos in Playlist 2 missing from Playlist 19
+-- Videos in Playlist p1 missing from p2
+SELECT 
+    v1.video_id,
+    v1.video_title,
+    v1.video_url,
+    (SELECT p1 FROM params) AS playlist_source
+FROM (SELECT * FROM videos_in_playlists WHERE playlist_id = (SELECT p1 FROM params)) v1
+LEFT JOIN (SELECT * FROM videos_in_playlists WHERE playlist_id = (SELECT p2 FROM params)) v2
+       ON v1.video_id = v2.video_id
+WHERE v2.video_id IS NULL
+
+UNION
+
+-- Videos in Playlist p2 missing from p1
 SELECT 
     v2.video_id,
     v2.video_title,
     v2.video_url,
-    2 AS playlist_source
-FROM (SELECT * FROM videos_in_playlists WHERE playlist_id = 2) v2
-LEFT JOIN (SELECT * FROM videos_in_playlists WHERE playlist_id = 19) v19
-       ON v2.video_id = v19.video_id
-WHERE v19.video_id IS NULL
+    (SELECT p2 FROM params) AS playlist_source
+FROM (SELECT * FROM videos_in_playlists WHERE playlist_id = (SELECT p2 FROM params)) v2
+LEFT JOIN (SELECT * FROM videos_in_playlists WHERE playlist_id = (SELECT p1 FROM params)) v1
+       ON v2.video_id = v1.video_id
+WHERE v1.video_id IS NULL;
 
-UNION
-
--- Videos in Playlist 19 missing from Playlist 2
-SELECT 
-    v19.video_id,
-    v19.video_title,
-    v19.video_url,
-    19 AS playlist_source
-FROM (SELECT * FROM videos_in_playlists WHERE playlist_id = 19) v19
-LEFT JOIN (SELECT * FROM videos_in_playlists WHERE playlist_id = 2) v2
-       ON v19.video_id = v2.video_id
-WHERE v2.video_id IS NULL;
 ```
 
 This feature essentially performs a diff between playlists, giving you a clear overview of which videos are unique to each playlist.
