@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-PROJECT_DIR="/home/sebastian/easy-price-monitor"
+PROJECT_DIR="/home/sebastian/yt-pao" # Replace with your path
 CONFIG_YAML="$PROJECT_DIR/config.yaml"
 
 # Check if config exists
