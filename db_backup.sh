@@ -16,11 +16,11 @@ command -v mysqldump >/dev/null 2>&1 || { echo "mysqldump not found. Install it 
 
 # Function to read configuration from YAML file
 read_config() {
-    DB_HOST=$(yq '.database.host' "$CONFIG_YAML")
-    DB_USER=$(yq '.database.user' "$CONFIG_YAML")
-    DB_PASSWORD=$(yq '.database.password' "$CONFIG_YAML")
-    DB_NAME=$(yq '.database.database' "$CONFIG_YAML")
-    DB_PORT=$(yq '.database.port // ""' "$CONFIG_YAML")
+    DB_HOST=$(yq -r '.database.host' "$CONFIG_YAML")
+    DB_USER=$(yq -r '.database.user' "$CONFIG_YAML")
+    DB_PASSWORD=$(yq -r '.database.password' "$CONFIG_YAML")
+    DB_NAME=$(yq -r '.database.database' "$CONFIG_YAML")
+    DB_PORT=$(yq -r '.database.port // empty' "$CONFIG_YAML")
     DB_PORT=${DB_PORT:-3306}
 
     if [[ -z "$DB_HOST" || -z "$DB_USER" || -z "$DB_PASSWORD" || -z "$DB_NAME" ]]; then
@@ -28,6 +28,7 @@ read_config() {
         exit 1
     fi
 }
+
 
 # Function to create a backup
 create_backup() {
