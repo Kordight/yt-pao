@@ -20,11 +20,10 @@ read_config() {
     DB_USER=$(yq '.database.user' "$CONFIG_YAML")
     DB_PASSWORD=$(yq '.database.password' "$CONFIG_YAML")
     DB_NAME=$(yq '.database.database' "$CONFIG_YAML")
-    DB_PORT=$(yq '.database.port' "$CONFIG_YAML")
+    DB_PORT=$(yq '.database.port // ""' "$CONFIG_YAML")
     DB_PORT=${DB_PORT:-3306}
 
-    # Check for missing configuration values
-    if [[ -z "$DB_HOST" || -z "$DB_USER" || -z "$DB_PASSWORD" || -z "$DB_NAME" || -z "$DB_PORT" ]]; then
+    if [[ -z "$DB_HOST" || -z "$DB_USER" || -z "$DB_PASSWORD" || -z "$DB_NAME" ]]; then
         echo "Error: One or more required database configuration values are missing in $CONFIG_YAML."
         exit 1
     fi
