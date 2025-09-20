@@ -166,3 +166,4 @@ cython_debug/
 config.yaml
 
 .DS_Store
+backups/
