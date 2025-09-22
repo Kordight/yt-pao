@@ -1,6 +1,6 @@
 import mysql.connector
 from mysql.connector import Error
-from datetime import datetime
+from datetime import datetime, timezone
 
 def normalize_view_count(view_count):
     try:
@@ -26,7 +26,7 @@ def create_database(host, user, password, database):
                 playlist_id INT AUTO_INCREMENT PRIMARY KEY,
                 playlist_name VARCHAR(255) NOT NULL,
                 playlist_url VARCHAR(255) NOT NULL UNIQUE,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             ''')
 
@@ -44,12 +44,12 @@ def create_database(host, user, password, database):
             ''')
 
             cursor.execute('''
-            CREATE TABLE IF NOT EXISTS ytp_reports (
-                report_id INT AUTO_INCREMENT PRIMARY KEY,
-                report_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-                playlist_id INT NOT NULL,
-                FOREIGN KEY (playlist_id) REFERENCES ytp_playlists(playlist_id) ON DELETE CASCADE
-            )
+                CREATE TABLE IF NOT EXISTS ytp_reports (
+                    report_id INT AUTO_INCREMENT PRIMARY KEY,
+                    report_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    playlist_id INT NOT NULL,
+                    FOREIGN KEY (playlist_id) REFERENCES ytp_playlists(playlist_id) ON DELETE CASCADE
+                )
             ''')
 
             cursor.execute('''
@@ -239,7 +239,8 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                 playlist_id = cursor.lastrowid
 
             # Add report
-            report_date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+            report_date = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+
             cursor.execute('''
             INSERT INTO ytp_reports (report_date, playlist_id)
             VALUES (%s, %s)

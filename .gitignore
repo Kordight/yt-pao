@@ -167,3 +167,9 @@ config.yaml
 
 .DS_Store
 backups/
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/yt-pao.iml
+.idea/vcs.xml
+.idea/modules.xml
+.idea/misc.xml
+.idea/.gitignore
