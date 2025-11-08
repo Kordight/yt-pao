@@ -207,7 +207,9 @@ def main():
             file_path = os.path.join(folder_path, f"{args.listMode}_{date_time}.html")
             with open(file_path, "w", encoding="utf-8") as file:
                 file.write(final_html)
-
+            #Latest report save
+            with open (os.path.join(folder_path, f"latest_{args.listMode}.html"), "w", encoding="utf-8") as file:
+                file.write(final_html)
             print(f"Saved .html report to: {file_path}")
     
     elif args.resultFormat == "mySQL":
