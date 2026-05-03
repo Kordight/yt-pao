@@ -1,6 +1,7 @@
 import mysql.connector
 from mysql.connector import Error
 from datetime import datetime, timezone
+from thumbnail_parser import download_image, calculate_sha256, save_image
 
 def normalize_view_count(view_count):
     try:
@@ -12,6 +13,20 @@ def normalize_text(value, default=''):
     if value is None:
         return default
     return str(value)
+
+def get_cached_thumbnail_id(cursor, thumbnail_url):
+    if not thumbnail_url:
+        return None
+
+    cursor.execute('''
+        SELECT thumbnail_id
+        FROM ytp_thumbnails
+        WHERE source_url = %s
+        ORDER BY thumbnail_id DESC
+        LIMIT 1
+    ''', (thumbnail_url,))
+    result = cursor.fetchone()
+    return result[0] if result else None
 
 def create_database(host, user, password, database):
     conn = None  # Initialize conn to None
@@ -71,6 +86,7 @@ def create_database(host, user, password, database):
                 CREATE TABLE IF NOT EXISTS ytp_thumbnails (
                     thumbnail_id INT AUTO_INCREMENT PRIMARY KEY,
                     file_name VARCHAR(255) NOT NULL,
+                    source_url VARCHAR(1024),
                     sha256_hash VARCHAR(64) NOT NULL UNIQUE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -164,6 +180,18 @@ def create_database(host, user, password, database):
 
             update_collumnns_in_table('ytp_video_details', required_columns, expected_types, expected_nullable)
 
+            required_columns = {
+                'source_url': "ADD COLUMN source_url VARCHAR(1024)"
+            }
+            expected_types = {
+                'source_url': 'varchar(1024)'
+            }
+            expected_nullable = {
+                'source_url': True
+            }
+
+            update_collumnns_in_table('ytp_thumbnails', required_columns, expected_types, expected_nullable)
+
             # Update playlist details
 
             required_columns = {
@@ -211,7 +239,7 @@ def create_database(host, user, password, database):
             cursor.close()
             conn.close()
 
-def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description, playlist_privacy, playlist_thumbnail=None):
+def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description, playlist_privacy, playlist_thumbnail, downloaded_thumbnails_cache=None):
     playlist_name = normalize_text(playlist_name, default='Unknown Playlist')
     playlist_description = normalize_text(playlist_description, default='')
     playlist_privacy = normalize_text(playlist_privacy, default='unknown')
@@ -267,8 +295,99 @@ def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist
             INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
             VALUES (%s, 'privacy', %s)
         ''', (report_id, playlist_privacy))
+    
+    # If thumbnail has changed, insert a new record
+    # Use cache to avoid downloading the same thumbnail multiple times in one session
+    if downloaded_thumbnails_cache is None:
+        downloaded_thumbnails_cache = {}
+    
+    # First, calculate the SHA256 hash of the new thumbnail URL
+    if playlist_thumbnail:
+        cached_thumbnail_id = get_cached_thumbnail_id(cursor, playlist_thumbnail)
+        if cached_thumbnail_id:
+            print(f"[Playlist] Thumbnail already in database (id: {cached_thumbnail_id})")
+            cursor.execute('''
+                SELECT t.sha256_hash
+                FROM ytp_reports r
+                JOIN ytp_playlist_details d ON r.report_id = d.report_id
+                JOIN ytp_thumbnails t ON d.thumbnail_id = t.thumbnail_id
+                WHERE r.playlist_id = %s AND d.change_type = 'thumbnail' AND r.report_id < %s
+                ORDER BY r.report_id DESC
+                LIMIT 1
+            ''', (playlist_id, report_id))
+            last_thumbnail_hash_result = cursor.fetchone()
+            last_thumbnail_hash = last_thumbnail_hash_result[0] if last_thumbnail_hash_result else None
+            if last_thumbnail_hash is None:
+                cursor.execute('''
+                    INSERT INTO ytp_playlist_details (report_id, change_type, change_value, thumbnail_id)
+                    VALUES (%s, 'thumbnail', %s, %s)
+                ''', (report_id, playlist_thumbnail, cached_thumbnail_id))
+            return
 
-def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, availability, report_id):
+        # Check if we already have this thumbnail in cache or database
+        incoming_image_hash = None
+        incoming_image_content = None
+        
+        # Check local cache first
+        if playlist_thumbnail in downloaded_thumbnails_cache:
+            incoming_image_hash, incoming_image_content = downloaded_thumbnails_cache[playlist_thumbnail]
+            print(f"[Playlist] Using cached thumbnail")
+        else:
+            # Download the thumbnail
+            incoming_image_content = download_image(playlist_thumbnail)
+            if incoming_image_content:
+                incoming_image_hash = calculate_sha256(incoming_image_content)
+                # Cache it for reuse in this session
+                if incoming_image_hash:
+                    downloaded_thumbnails_cache[playlist_thumbnail] = (incoming_image_hash, incoming_image_content)
+        
+        if incoming_image_hash and incoming_image_content:
+            # Check if the hash already exists in the ytp_thumbnails table
+            cursor.execute('''
+                SELECT thumbnail_id FROM ytp_thumbnails WHERE sha256_hash = %s
+            ''', (incoming_image_hash,))
+            thumbnail_result = cursor.fetchone()
+
+            if thumbnail_result:
+                thumbnail_id = thumbnail_result[0]
+                print(f"[Playlist] Thumbnail already in database (id: {thumbnail_id})")
+            else:
+                # Save the image to disk and insert a new record into ytp_thumbnails
+                file_name = save_image(incoming_image_content)
+                if file_name:
+                    cursor.execute('''
+                        INSERT INTO ytp_thumbnails (file_name, source_url, sha256_hash)
+                        VALUES (%s, %s, %s)
+                    ''', (file_name, playlist_thumbnail, incoming_image_hash))
+                    thumbnail_id = cursor.lastrowid
+                    print(f"[Playlist] Saved new thumbnail: {file_name}")
+                else:
+                    print("Warning: Failed to save playlist thumbnail to disk")
+                    thumbnail_id = None
+
+            # Get the last recorded thumbnail hash for this playlist
+            cursor.execute('''
+                SELECT t.sha256_hash
+                FROM ytp_reports r
+                JOIN ytp_playlist_details d ON r.report_id = d.report_id
+                JOIN ytp_thumbnails t ON d.thumbnail_id = t.thumbnail_id
+                WHERE r.playlist_id = %s AND d.change_type = 'thumbnail' AND r.report_id < %s
+                ORDER BY r.report_id DESC
+                LIMIT 1
+            ''', (playlist_id, report_id))
+            last_thumbnail_hash_result = cursor.fetchone()
+            last_thumbnail_hash = last_thumbnail_hash_result[0] if last_thumbnail_hash_result else None
+
+            # If the thumbnail has changed, insert a new record into ytp_playlist_details
+            if incoming_image_hash != last_thumbnail_hash and thumbnail_id:
+                cursor.execute('''
+                    INSERT INTO ytp_playlist_details (report_id, change_type, change_value, thumbnail_id)
+                    VALUES (%s, 'thumbnail', %s, %s)
+                ''', (report_id, playlist_thumbnail, thumbnail_id))
+        else:
+            print("Warning: Failed to download or process playlist thumbnail")
+
+def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, availability, report_id, video_thumbnail, downloaded_thumbnails_cache=None):
     # Check if the video title has changed
     cursor.execute('''
         SELECT change_value 
@@ -320,11 +439,92 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
             INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value)
             VALUES (%s, %s, %s, %s)
         ''', (video_id, report_id, 'availability', str(availability)))
+    
+    if video_thumbnail:
+        cached_thumbnail_id = get_cached_thumbnail_id(cursor, video_thumbnail)
+        if cached_thumbnail_id:
+            print(f"[Video {video_id}] Thumbnail already in database (id: {cached_thumbnail_id})")
+            cursor.execute('''
+                SELECT t.sha256_hash
+                FROM ytp_video_details d
+                JOIN ytp_thumbnails t ON d.thumbnail_id = t.thumbnail_id
+                WHERE d.video_id = %s AND d.change_type = 'thumbnail' AND d.report_id < %s
+                ORDER BY d.report_id DESC
+                LIMIT 1
+            ''', (video_id, report_id))
+            last_thumbnail_hash_result = cursor.fetchone()
+            last_thumbnail_hash = last_thumbnail_hash_result[0] if last_thumbnail_hash_result else None
+            if last_thumbnail_hash is None:
+                cursor.execute('''
+                    INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value, thumbnail_id)
+                    VALUES (%s, %s, 'thumbnail', %s, %s)
+                ''', (video_id, report_id, video_thumbnail, cached_thumbnail_id))
+            return
+
+        # Use cache to avoid downloading the same thumbnail multiple times
+        if downloaded_thumbnails_cache is None:
+            downloaded_thumbnails_cache = {}
+        
+        # Check if we already have this thumbnail in cache
+        incoming_image_hash = None
+        incoming_image_content = None
+        
+        if video_thumbnail in downloaded_thumbnails_cache:
+            incoming_image_hash, incoming_image_content = downloaded_thumbnails_cache[video_thumbnail]
+        else:
+            # Download the thumbnail
+            incoming_image_content = download_image(video_thumbnail)
+            if incoming_image_content:
+                incoming_image_hash = calculate_sha256(incoming_image_content)
+                # Cache it for reuse in this session
+                if incoming_image_hash:
+                    downloaded_thumbnails_cache[video_thumbnail] = (incoming_image_hash, incoming_image_content)
+        
+        if incoming_image_hash and incoming_image_content:
+            # Check if the hash already exists in the ytp_thumbnails table
+            cursor.execute('''
+                SELECT thumbnail_id FROM ytp_thumbnails WHERE sha256_hash = %s
+            ''', (incoming_image_hash,))
+            thumbnail_result = cursor.fetchone()
+
+            if thumbnail_result:
+                thumbnail_id = thumbnail_result[0]
+            else:
+                # Save the image to disk and insert a new record into ytp_thumbnails
+                file_name = save_image(incoming_image_content)
+                if file_name:
+                    cursor.execute('''
+                        INSERT INTO ytp_thumbnails (file_name, source_url, sha256_hash)
+                        VALUES (%s, %s, %s)
+                    ''', (file_name, video_thumbnail, incoming_image_hash))
+                    thumbnail_id = cursor.lastrowid
+                else:
+                    print("Warning: Failed to save thumbnail image to disk")
+                    thumbnail_id = None
+
+            # Get the last recorded thumbnail hash for this video
+            cursor.execute('''
+                SELECT t.sha256_hash
+                FROM ytp_video_details d
+                JOIN ytp_thumbnails t ON d.thumbnail_id = t.thumbnail_id
+                WHERE d.video_id = %s AND d.change_type = 'thumbnail' AND d.report_id < %s
+                ORDER BY d.report_id DESC
+                LIMIT 1
+            ''', (video_id, report_id))
+            last_thumbnail_hash_result = cursor.fetchone()
+            last_thumbnail_hash = last_thumbnail_hash_result[0] if last_thumbnail_hash_result else None
+
+            # If the thumbnail has changed, insert a new record into ytp_video_details
+            if incoming_image_hash != last_thumbnail_hash and thumbnail_id:
+                cursor.execute('''
+                    INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value, thumbnail_id)
+                    VALUES (%s, %s, 'thumbnail', %s, %s)
+                ''', (video_id, report_id, video_thumbnail, thumbnail_id))
 
 
 
     
-def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy):
+def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails=None, downloaded_thumbnails_cache=None, batch_size=50):
     conn = None  # Initialize conn to None
     try:
         conn = mysql.connector.connect(
@@ -363,10 +563,13 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
             VALUES (%s, %s)
             ''', (report_date, playlist_id))
             report_id = cursor.lastrowid
-            update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description, playlist_privacy)
+            update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description, playlist_privacy, playlist_thumbnail, downloaded_thumbnails_cache)
+
+            total_videos = len(video_titles)
 
             # Add videos and report details
-            for title, link, length, uploader_row, uploader_url_row, view_count_row, isvalid_row in zip(video_titles, saved_video_links, video_durations, uploader, uploader_url, view_count, isvalidl):
+            for index, (title, link, length, uploader_row, uploader_url_row, view_count_row, isvalid_row) in enumerate(zip(video_titles, saved_video_links, video_durations, uploader, uploader_url, view_count, isvalidl)):
+                print(f"[Video {index + 1}/{total_videos}] Processing {title}")
                 if length is None:
                     length = 0 
 
@@ -378,6 +581,7 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
 
                 if video_result:
                     video_id = video_result[0]
+                    print(f"[Video {index + 1}/{total_videos}] Duplicate video in playlist (or already in DB), reusing ID: {video_id}")
                 else:
                     # Add video
                     cursor.execute('''
@@ -392,7 +596,12 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                 VALUES (%s, %s)
                 ''', (report_id, video_id))
                 # Update video metadata if it has changed
-                update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id)
+                video_thumbnail = video_thumbnails[index] if video_thumbnails and index < len(video_thumbnails) else None
+                update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id, video_thumbnail, downloaded_thumbnails_cache)
+
+                if batch_size and (index + 1) % batch_size == 0:
+                    conn.commit()
+                    print(f"[DB] Committed batch through video {index + 1}/{total_videos}")
 
             conn.commit()
             return True

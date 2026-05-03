@@ -109,6 +109,7 @@ def main():
     playlist_name = playlist_data['playlist_name']
     playlist_description = playlist_data['description']
     playlist_privacy = playlist_data['playlist_privacy']
+    playlist_thumbnail = playlist_data.get('playlist_thumbnail', None)
     folder_path = f"Output/{playlist_name}_{get_playlist_id(playlist_data['url'])}"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
@@ -216,6 +217,7 @@ def main():
     elif args.resultFormat == "mySQL":
             db_config = load_db_config()
             create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'])
+            downloaded_thumbnails_cache = {}
             video_titles = [video.title for video in videos]
             saved_video_links = [video.url for video in videos]
             video_durations = [video.duration for video in videos]
@@ -223,8 +225,9 @@ def main():
             uploader_url = [video.uploader_url for video in videos]
             view_count = [video.view_count for video in videos]
             isvalid = [video.valid for video in videos]
+            video_thumbnails = [video.thumbnail for video in videos]
             saved = add_report(db_config['host'], db_config['user'], db_config['password'], db_config['database'],
-                    video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description, playlist_privacy)
+                video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails, downloaded_thumbnails_cache)
             if saved:
                 print("Report saved to MySQL database.")
             else:
