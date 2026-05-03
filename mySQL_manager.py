@@ -521,6 +521,9 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
                     VALUES (%s, %s, 'thumbnail', %s, %s)
                 ''', (video_id, report_id, video_thumbnail, thumbnail_id))
 
+    else:
+        print(f"[ERROR] Video ID {video_id} ('{video_title}') has NO thumbnail provided by yt-dlp!")
+
 
 
     
