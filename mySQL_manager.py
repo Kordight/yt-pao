@@ -8,6 +8,11 @@ def normalize_view_count(view_count):
     except (TypeError, ValueError):
         return 0
 
+def normalize_text(value, default=''):
+    if value is None:
+        return default
+    return str(value)
+
 def create_database(host, user, password, database):
     conn = None  # Initialize conn to None
     try:
@@ -99,15 +104,18 @@ def create_database(host, user, password, database):
                 )
             ''')
 
-            def update_collumnns_in_table(table_name, required_columns, expected_types):
+            def update_collumnns_in_table(table_name, required_columns, expected_types, expected_nullable=None):
                 cursor.execute(f"""
-                    SELECT COLUMN_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                    SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
                     WHERE TABLE_NAME = '{table_name}' AND TABLE_SCHEMA = DATABASE()
                 """)
 
                 columns_obj = cursor.fetchall()
                 columns = {row[0] for row in columns_obj}
                 column_types = {row[0]: row[1] for row in columns_obj}
+                column_nullable = {row[0]: row[2] for row in columns_obj}
+                if expected_nullable is None:
+                    expected_nullable = {}
 
                 # Execute ALTER TABLE statements for each required column
                 for col_name, alter_sql in required_columns.items():
@@ -115,10 +123,22 @@ def create_database(host, user, password, database):
                         print(f"Adding or modifying column: {col_name}")
                         cursor.execute(f"ALTER TABLE {table_name} {alter_sql}")
                     else:
+                        is_add_column_sql = alter_sql.strip().upper().startswith('ADD COLUMN')
                         existing_type = column_types.get(col_name, '').lower()
                         expected_type = expected_types[col_name].lower()
-                        if existing_type != expected_type:
-                            print(f"Modifying column type for: {col_name} from {existing_type} to {expected_type}")
+                        existing_nullable = column_nullable.get(col_name, 'YES')
+                        expected_nullable_value = expected_nullable.get(col_name)
+                        nullable_mismatch = (
+                            not is_add_column_sql
+                            and
+                            expected_nullable_value is not None
+                            and ((expected_nullable_value and existing_nullable != 'YES') or (not expected_nullable_value and existing_nullable != 'NO'))
+                        )
+                        if existing_type != expected_type or nullable_mismatch:
+                            print(
+                                f"Modifying column: {col_name} "
+                                f"(type {existing_type} -> {expected_type}, nullable {existing_nullable})"
+                            )
                             cursor.execute(f"ALTER TABLE {table_name} {alter_sql}")
 
             # Update video details
@@ -133,14 +153,19 @@ def create_database(host, user, password, database):
                 'change_type': "enum('title','views','availability','thumbnail')",
                 'change_value': 'text'
             }
+            expected_nullable = {
+                'report_id': True,
+                'change_type': False,
+                'change_value': True
+            }
 
-            update_collumnns_in_table('ytp_video_details', required_columns, expected_types)
+            update_collumnns_in_table('ytp_video_details', required_columns, expected_types, expected_nullable)
 
             # Update playlist details
 
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
-                'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'privacy', 'thumbnail') NOT NULL",
+                'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'privacy', 'thumbnail')",
                 'change_value': "MODIFY COLUMN change_value TEXT"
             }
             expected_types = {
@@ -148,8 +173,13 @@ def create_database(host, user, password, database):
                 'change_type': "enum('title','description','privacy','thumbnail')",
                 'change_value': 'text'
             }
+            expected_nullable = {
+                'report_id': True,
+                'change_type': False,
+                'change_value': True
+            }
 
-            update_collumnns_in_table('ytp_playlist_details', required_columns, expected_types)
+            update_collumnns_in_table('ytp_playlist_details', required_columns, expected_types, expected_nullable)
 
             conn.commit()
             
@@ -161,57 +191,61 @@ def create_database(host, user, password, database):
             conn.close()
 
 def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description, playlist_privacy, playlist_thumbnail=None):
+    playlist_name = normalize_text(playlist_name, default='Unknown Playlist')
+    playlist_description = normalize_text(playlist_description, default='')
+    playlist_privacy = normalize_text(playlist_privacy, default='unknown')
+
     # Previous palylist title and description
-                cursor.execute('''
-                    SELECT d.change_value
-                    FROM ytp_reports r
-                    JOIN ytp_playlist_details d ON r.report_id = d.report_id
-                    WHERE r.playlist_id = %s AND d.change_type = 'title' AND r.report_id < %s
-                    ORDER BY r.report_id DESC
-                    LIMIT 1
-                ''', (playlist_id, report_id))
-                previous_title = cursor.fetchone()
+    cursor.execute('''
+        SELECT d.change_value
+        FROM ytp_reports r
+        JOIN ytp_playlist_details d ON r.report_id = d.report_id
+        WHERE r.playlist_id = %s AND d.change_type = 'title' AND r.report_id < %s
+        ORDER BY r.report_id DESC
+        LIMIT 1
+    ''', (playlist_id, report_id))
+    previous_title = cursor.fetchone()
 
-                cursor.execute('''
-                    SELECT d.change_value
-                    FROM ytp_reports r
-                    JOIN ytp_playlist_details d ON r.report_id = d.report_id
-                    WHERE r.playlist_id = %s AND d.change_type = 'description' AND r.report_id < %s
-                    ORDER BY r.report_id DESC
-                    LIMIT 1
-                ''', (playlist_id, report_id))
-                previous_description = cursor.fetchone()
+    cursor.execute('''
+        SELECT d.change_value
+        FROM ytp_reports r
+        JOIN ytp_playlist_details d ON r.report_id = d.report_id
+        WHERE r.playlist_id = %s AND d.change_type = 'description' AND r.report_id < %s
+        ORDER BY r.report_id DESC
+        LIMIT 1
+    ''', (playlist_id, report_id))
+    previous_description = cursor.fetchone()
 
-                cursor.execute('''
-                    SELECT d.change_value
-                    FROM ytp_reports r
-                    JOIN ytp_playlist_details d ON r.report_id = d.report_id
-                    WHERE r.playlist_id = %s AND d.change_type = 'privacy' AND r.report_id < %s
-                    ORDER BY r.report_id DESC
-                    LIMIT 1
-                ''', (playlist_id, report_id))
-                previous_privacy = cursor.fetchone()
+    cursor.execute('''
+        SELECT d.change_value
+        FROM ytp_reports r
+        JOIN ytp_playlist_details d ON r.report_id = d.report_id
+        WHERE r.playlist_id = %s AND d.change_type = 'privacy' AND r.report_id < %s
+        ORDER BY r.report_id DESC
+        LIMIT 1
+    ''', (playlist_id, report_id))
+    previous_privacy = cursor.fetchone()
 
-                # If title has changed, insert a new record
-                if not previous_title or previous_title[0] != playlist_name:
-                    cursor.execute('''
-                        INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
-                        VALUES (%s, 'title', %s)
-                    ''', (report_id, playlist_name))
+    # If title has changed, insert a new record
+    if not previous_title or previous_title[0] != playlist_name:
+        cursor.execute('''
+            INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
+            VALUES (%s, 'title', %s)
+        ''', (report_id, playlist_name))
 
-                # If description has changed, insert a new record
-                if not previous_description or previous_description[0] != playlist_description:
-                    cursor.execute('''
-                        INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
-                        VALUES (%s, 'description', %s)
-                    ''', (report_id, playlist_description))
+    # If description has changed, insert a new record
+    if not previous_description or previous_description[0] != playlist_description:
+        cursor.execute('''
+            INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
+            VALUES (%s, 'description', %s)
+        ''', (report_id, playlist_description))
 
-                # If privacy has changed, insert a new record
-                if not previous_privacy or previous_privacy[0] != playlist_privacy:
-                    cursor.execute('''
-                        INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
-                        VALUES (%s, 'privacy', %s)
-                    ''', (report_id, playlist_privacy))
+    # If privacy has changed, insert a new record
+    if not previous_privacy or previous_privacy[0] != playlist_privacy:
+        cursor.execute('''
+            INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
+            VALUES (%s, 'privacy', %s)
+        ''', (report_id, playlist_privacy))
 
 def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, availability, report_id):
     # Check if the video title has changed
@@ -340,8 +374,10 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                 update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id)
 
             conn.commit()
+            return True
     except Error as e:
         print(f"Error: {e}")
+        return False
     finally:
         if conn and conn.is_connected():
             cursor.close()
