@@ -66,7 +66,7 @@ def create_database(host, user, password, database):
                 CREATE TABLE IF NOT EXISTS ytp_playlist_details (
                     change_id INT AUTO_INCREMENT PRIMARY KEY,
                     report_id INT,
-                    change_type ENUM('description', 'title') NOT NULL,
+                    change_type ENUM('description', 'title', 'thumbnail', 'availability') NOT NULL,
                     change_value TEXT NOT NULL,
                     FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id)
                         ON DELETE CASCADE ON UPDATE CASCADE
@@ -78,7 +78,7 @@ def create_database(host, user, password, database):
                     change_id INT AUTO_INCREMENT PRIMARY KEY,
                     video_id INT NOT NULL,
                     report_id INT NOT NULL,
-                    change_type ENUM('title', 'views', 'availability') NOT NULL,
+                    change_type ENUM('title', 'views', 'availability', 'thumbnail') NOT NULL,
                     change_value TEXT NOT NULL,
                     FOREIGN KEY (video_id) REFERENCES ytp_videos(video_id)
                         ON DELETE CASCADE ON UPDATE CASCADE,
@@ -87,25 +87,57 @@ def create_database(host, user, password, database):
                 )
             ''')
 
-            cursor.execute("""
-                SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_NAME = 'ytp_video_details' AND TABLE_SCHEMA = DATABASE()
-            """)
-            columns = {row[0] for row in cursor.fetchall()}
+            def update_collumnns_in_table(table_name, required_columns, expected_types):
+                cursor.execute("""
+                    SELECT COLUMN_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_NAME = '%s' AND TABLE_SCHEMA = DATABASE()
+                """, (table_name,))
 
-            # List of required columns
-            # If any of these columns are missing, they will be added
+                columns_obj = cursor.fetchall()
+                columns = {row[0] for row in columns_obj}
+                column_types = {row[0]: row[1] for row in columns_obj}
+
+                # Execute ALTER TABLE statements for each required column
+                for col_name, alter_sql in required_columns.items():
+                    if col_name not in columns:
+                        print(f"Adding or modifying column: {col_name}")
+                        cursor.execute(f"ALTER TABLE {table_name} {alter_sql}")
+                    else:
+                        existing_type = column_types.get(col_name, '').lower()
+                        expected_type = expected_types[col_name].lower()
+                        if existing_type != expected_type:
+                            print(f"Modifying column type for: {col_name} from {existing_type} to {expected_type}")
+                            cursor.execute(f"ALTER TABLE {table_name} {alter_sql}")
+
+            # Update video details
+            
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
-                'change_type': "MODIFY COLUMN change_type ENUM('title', 'views', 'availability') NOT NULL",
+                'change_type': "MODIFY COLUMN change_type ENUM('title', 'views', 'availability', 'thumbnail') NOT NULL",
                 'change_value': "MODIFY COLUMN change_value TEXT NOT NULL"
             }
+            expected_types = {
+                'report_id': 'int',
+                'change_type': "enum('title','views','availability','thumbnail')",
+                'change_value': 'text'
+            }
 
-            # Execute ALTER TABLE statements for each required column
-            for col_name, alter_sql in required_columns.items():
-                if col_name not in columns:
-                    print(f"Adding or modifying column: {col_name}")
-                    cursor.execute(f"ALTER TABLE ytp_video_details {alter_sql}")
+            update_collumnns_in_table('ytp_video_details', required_columns, expected_types)
+
+            # Update playlist details
+            
+            required_columns = {
+                'report_id': "ADD COLUMN report_id INT",
+                'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'availability', 'thumbnail') NOT NULL",
+                'change_value': "MODIFY COLUMN change_value TEXT NOT NULL"
+            }
+            expected_types = {
+                'report_id': 'int',
+                'change_type': "enum('title','description','availability','thumbnail')",
+                'change_value': 'text'
+            }
+
+            update_collumnns_in_table('ytp_playlist_details', required_columns, expected_types)
 
             conn.commit()
             
@@ -115,6 +147,7 @@ def create_database(host, user, password, database):
         if conn and conn.is_connected():
             cursor.close()
             conn.close()
+
 def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description):
     # Previous palylist title and description
                 cursor.execute('''
