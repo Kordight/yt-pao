@@ -29,6 +29,7 @@ def get_playlist_content(playlist_link, ydl_opts):
             print(f"ERROR: Cannot download playlist data: {e}")
             return None, []
 
+
     video_entries = playlist_dict.get('entries', [])
     videos = []
     for entry in video_entries:
@@ -51,7 +52,8 @@ def get_playlist_content(playlist_link, ydl_opts):
         'uploader': playlist_dict.get('uploader', 'Unknown uploader'),
         'uploader_url': playlist_dict.get('uploader_url', 'Unknown URL'),
         'url': playlist_dict.get('webpage_url', playlist_link),  
-        'playlist_duration': playlist_duration
+        'playlist_duration': playlist_duration,
+        'playlist_privacy': playlist_dict.get('availability', 'public')
     }
     return playlist_data, videos
 

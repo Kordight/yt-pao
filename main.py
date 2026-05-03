@@ -108,6 +108,7 @@ def main():
     playlist_data, videos = parse_playlist(process_playlist_URL(args.playlistLink), args.listMode)
     playlist_name = playlist_data['playlist_name']
     playlist_description = playlist_data['description']
+    playlist_privacy = playlist_data['playlist_privacy']
     folder_path = f"Output/{playlist_name}_{get_playlist_id(playlist_data['url'])}"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
@@ -223,7 +224,7 @@ def main():
             view_count = [video.view_count for video in videos]
             isvalid = [video.valid for video in videos]
             add_report(db_config['host'], db_config['user'], db_config['password'], db_config['database'],
-                    video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description)
+                    video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description, playlist_privacy)
             print("Report saved to MySQL database.")
 
 if __name__ == "__main__":

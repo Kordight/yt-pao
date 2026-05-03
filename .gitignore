@@ -173,3 +173,5 @@ backups/
 .idea/modules.xml
 .idea/misc.xml
 .idea/.gitignore
+
+tools/

@@ -66,7 +66,7 @@ def create_database(host, user, password, database):
                 CREATE TABLE IF NOT EXISTS ytp_playlist_details (
                     change_id INT AUTO_INCREMENT PRIMARY KEY,
                     report_id INT,
-                    change_type ENUM('description', 'title', 'thumbnail', 'availability') NOT NULL,
+                    change_type ENUM('description', 'title', 'thumbnail', 'privacy') NOT NULL,
                     change_value TEXT NOT NULL,
                     FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id)
                         ON DELETE CASCADE ON UPDATE CASCADE
@@ -88,10 +88,10 @@ def create_database(host, user, password, database):
             ''')
 
             def update_collumnns_in_table(table_name, required_columns, expected_types):
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT COLUMN_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
-                    WHERE TABLE_NAME = '%s' AND TABLE_SCHEMA = DATABASE()
-                """, (table_name,))
+                    WHERE TABLE_NAME = '{table_name}' AND TABLE_SCHEMA = DATABASE()
+                """)
 
                 columns_obj = cursor.fetchall()
                 columns = {row[0] for row in columns_obj}
@@ -125,15 +125,15 @@ def create_database(host, user, password, database):
             update_collumnns_in_table('ytp_video_details', required_columns, expected_types)
 
             # Update playlist details
-            
+
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
-                'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'availability', 'thumbnail') NOT NULL",
+                'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'privacy', 'thumbnail') NOT NULL",
                 'change_value': "MODIFY COLUMN change_value TEXT NOT NULL"
             }
             expected_types = {
                 'report_id': 'int',
-                'change_type': "enum('title','description','availability','thumbnail')",
+                'change_type': "enum('title','description','privacy','thumbnail')",
                 'change_value': 'text'
             }
 
@@ -148,7 +148,7 @@ def create_database(host, user, password, database):
             cursor.close()
             conn.close()
 
-def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description):
+def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description, playlist_privacy, playlist_thumbnail=None):
     # Previous palylist title and description
                 cursor.execute('''
                     SELECT d.change_value
@@ -170,6 +170,16 @@ def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist
                 ''', (playlist_id, report_id))
                 previous_description = cursor.fetchone()
 
+                cursor.execute('''
+                    SELECT d.change_value
+                    FROM ytp_reports r
+                    JOIN ytp_playlist_details d ON r.report_id = d.report_id
+                    WHERE r.playlist_id = %s AND d.change_type = 'privacy' AND r.report_id < %s
+                    ORDER BY r.report_id DESC
+                    LIMIT 1
+                ''', (playlist_id, report_id))
+                previous_privacy = cursor.fetchone()
+
                 # If title has changed, insert a new record
                 if not previous_title or previous_title[0] != playlist_name:
                     cursor.execute('''
@@ -183,6 +193,13 @@ def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist
                         INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
                         VALUES (%s, 'description', %s)
                     ''', (report_id, playlist_description))
+
+                # If privacy has changed, insert a new record
+                if not previous_privacy or previous_privacy[0] != playlist_privacy:
+                    cursor.execute('''
+                        INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
+                        VALUES (%s, 'privacy', %s)
+                    ''', (report_id, playlist_privacy))
 
 def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, availability, report_id):
     # Check if the video title has changed
@@ -240,7 +257,7 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
 
 
     
-def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description):
+def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy):
     conn = None  # Initialize conn to None
     try:
         conn = mysql.connector.connect(
@@ -279,7 +296,7 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
             VALUES (%s, %s)
             ''', (report_date, playlist_id))
             report_id = cursor.lastrowid
-            update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description)
+            update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description, playlist_privacy)
 
             # Add videos and report details
             for title, link, length, uploader_row, uploader_url_row, view_count_row, isvalid_row in zip(video_titles, saved_video_links, video_durations, uploader, uploader_url, view_count, isvalidl):
