@@ -84,8 +84,8 @@ def create_database(host, user, password, database):
                     change_type ENUM('description', 'title', 'thumbnail', 'privacy') NOT NULL,
                     change_value TEXT, 
                     FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id) ON DELETE CASCADE ON UPDATE CASCADE,
-                    FOREIGN KEY (thumbnail_id) REFERENCES ytp_thumbnails(thumbnail_id) ON DELETE CASCADE ON UPDATE CASCADE    
-            )
+                    FOREIGN KEY (thumbnail_id) REFERENCES ytp_thumbnails(thumbnail_id) ON DELETE CASCADE ON UPDATE CASCADE
+                )
             ''')
 
             cursor.execute('''
@@ -146,17 +146,20 @@ def create_database(host, user, password, database):
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
                 'change_type': "MODIFY COLUMN change_type ENUM('title', 'views', 'availability', 'thumbnail') NOT NULL",
-                'change_value': "MODIFY COLUMN change_value TEXT"
+                'change_value': "MODIFY COLUMN change_value TEXT",
+                'thumbnail_id': "ADD COLUMN thumbnail_id INT, ADD CONSTRAINT fk_video_details_thumbnail FOREIGN KEY (thumbnail_id) REFERENCES ytp_thumbnails(thumbnail_id) ON DELETE CASCADE ON UPDATE CASCADE"
             }
             expected_types = {
                 'report_id': 'int',
                 'change_type': "enum('title','views','availability','thumbnail')",
-                'change_value': 'text'
+                'change_value': 'text',
+                'thumbnail_id': 'int'
             }
             expected_nullable = {
                 'report_id': True,
                 'change_type': False,
-                'change_value': True
+                'change_value': True,
+                'thumbnail_id': False
             }
 
             update_collumnns_in_table('ytp_video_details', required_columns, expected_types, expected_nullable)
@@ -180,6 +183,24 @@ def create_database(host, user, password, database):
             }
 
             update_collumnns_in_table('ytp_playlist_details', required_columns, expected_types, expected_nullable)
+
+            # Ensure thumbnail_id and its constraint exist in ytp_playlist_details
+            cursor.execute(f"""
+                SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'ytp_playlist_details' AND COLUMN_NAME = 'thumbnail_id' AND TABLE_SCHEMA = DATABASE()
+            """)
+            if not cursor.fetchone():
+                try:
+                    cursor.execute("""
+                        ALTER TABLE ytp_playlist_details 
+                        ADD COLUMN thumbnail_id INT,
+                        ADD CONSTRAINT fk_playlist_details_thumbnail 
+                        FOREIGN KEY (thumbnail_id) REFERENCES ytp_thumbnails(thumbnail_id) 
+                        ON DELETE CASCADE ON UPDATE CASCADE
+                    """)
+                    print("Added thumbnail_id column to ytp_playlist_details")
+                except Error as e:
+                    print(f"Info: thumbnail_id column already exists or constraint exists: {e}")
 
             conn.commit()
             
