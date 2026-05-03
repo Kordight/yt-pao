@@ -63,14 +63,24 @@ def create_database(host, user, password, database):
             ''')
 
             cursor.execute('''
+                CREATE TABLE IF NOT EXISTS ytp_thumbnails (
+                    thumbnail_id INT AUTO_INCREMENT PRIMARY KEY,
+                    file_name VARCHAR(255) NOT NULL,
+                    sha256_hash VARCHAR(64) NOT NULL UNIQUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            cursor.execute('''
                 CREATE TABLE IF NOT EXISTS ytp_playlist_details (
                     change_id INT AUTO_INCREMENT PRIMARY KEY,
                     report_id INT,
+                    thumbnail_id INT,
                     change_type ENUM('description', 'title', 'thumbnail', 'privacy') NOT NULL,
-                    change_value TEXT NOT NULL,
-                    FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id)
-                        ON DELETE CASCADE ON UPDATE CASCADE
-                )
+                    change_value TEXT, 
+                    FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id) ON DELETE CASCADE ON UPDATE CASCADE,
+                    FOREIGN KEY (thumbnail_id) REFERENCES ytp_thumbnails(thumbnail_id) ON DELETE CASCADE ON UPDATE CASCADE    
+            )
             ''')
 
             cursor.execute('''
@@ -78,12 +88,14 @@ def create_database(host, user, password, database):
                     change_id INT AUTO_INCREMENT PRIMARY KEY,
                     video_id INT NOT NULL,
                     report_id INT NOT NULL,
+                    thumbnail_id INT,
                     change_type ENUM('title', 'views', 'availability', 'thumbnail') NOT NULL,
-                    change_value TEXT NOT NULL,
+                    change_value TEXT,
                     FOREIGN KEY (video_id) REFERENCES ytp_videos(video_id)
                         ON DELETE CASCADE ON UPDATE CASCADE,
                     FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id)
-                        ON DELETE CASCADE ON UPDATE CASCADE
+                        ON DELETE CASCADE ON UPDATE CASCADE,
+                    FOREIGN KEY (thumbnail_id) REFERENCES ytp_thumbnails(thumbnail_id) ON DELETE CASCADE ON UPDATE CASCADE    
                 )
             ''')
 
@@ -114,7 +126,7 @@ def create_database(host, user, password, database):
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
                 'change_type': "MODIFY COLUMN change_type ENUM('title', 'views', 'availability', 'thumbnail') NOT NULL",
-                'change_value': "MODIFY COLUMN change_value TEXT NOT NULL"
+                'change_value': "MODIFY COLUMN change_value TEXT"
             }
             expected_types = {
                 'report_id': 'int',
@@ -129,7 +141,7 @@ def create_database(host, user, password, database):
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
                 'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'privacy', 'thumbnail') NOT NULL",
-                'change_value': "MODIFY COLUMN change_value TEXT NOT NULL"
+                'change_value': "MODIFY COLUMN change_value TEXT"
             }
             expected_types = {
                 'report_id': 'int',

@@ -1,3 +1,4 @@
 mysql-connector-python==9.1.0
 PyYAML==6.0.2
 yt_dlp
+requests
