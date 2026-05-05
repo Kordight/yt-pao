@@ -68,6 +68,8 @@ npm run dev
 
 Copy `.env.example` to `.env` and edit if you want to use an external DB or change defaults.
 
+If your MySQL server is outside Docker, set `DB_HOST` to that server's address. If it runs on the host machine, use `host.docker.internal` on Docker Desktop/Windows or the host's IP/DNS name on Linux.
+
 ```bash
 cp .env.example .env
 docker compose up --build
@@ -75,6 +77,7 @@ docker compose up --build
 
 - Frontend: http://localhost:3002
 - Backend API: http://localhost:8001
+- The bundled MySQL container is not published on host port 3306 anymore, so it will not clash with a local MySQL install.
 
 To run without the bundled MySQL, set `DB_HOST` in `.env` to your DB host and start only `backend` and `frontend`:
 
