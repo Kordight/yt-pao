@@ -68,9 +68,9 @@ def save_image(image_content):
     if not image_content:
         return None
 
-    os.makedirs('thumbnail_cache', exist_ok=True)
+    os.makedirs('static/thumbnail_cache', exist_ok=True)
     file_name = uuid.uuid4().hex + '.jpg'  # Generate a unique file name
-    file_path = os.path.join('thumbnail_cache', file_name)
+    file_path = os.path.join('static', 'thumbnail_cache', file_name)
 
     try:
         with Image.open(BytesIO(image_content)) as img:

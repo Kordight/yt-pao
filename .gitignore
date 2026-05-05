@@ -176,3 +176,8 @@ backups/
 
 tools/
 thumbnail_cache/
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+static/*

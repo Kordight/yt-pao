@@ -36,7 +36,8 @@ def create_database(host, user, password, database):
             user=user,
             password=password,
             database=database,
-            port=3306)
+            port=3306,
+            auth_plugin='mysql_native_password')
         if conn.is_connected():
             cursor = conn.cursor()
 
@@ -666,7 +667,8 @@ def create_cursor(host, user, password, database):
             user=user,
             password=password,
             database=database,
-            port=3306)
+            port=3306,
+            auth_plugin='mysql_native_password')
         if conn.is_connected():
             return conn.cursor(), conn
     except Error as e:
@@ -675,13 +677,32 @@ def create_cursor(host, user, password, database):
 
 def get_all_playlists(cursor):
     try:
-        cursor.execute('SELECT playlist_id, playlist_name, playlist_url FROM ytp_playlists')
+        cursor.execute('SELECT playlist_id, playlist_name, playlist_url, playlist_author, playlist_author_url FROM ytp_playlists')
+        db_playlists = cursor.fetchall()
         playlists = []
-        for row in cursor.fetchall():
+        for row in db_playlists:
+            p_id = row[0]
+
+            latest_title = get_latest_playlist_detail(cursor, p_id, 'title')
+            latest_description = get_latest_playlist_detail(cursor, p_id, 'description')
+            try:
+                latest_thumbnail_id = get_latest_playlist_detail(cursor, p_id, 'thumbnail')
+                latest_thumbnail = get_thumbnail_file_name_by_thumbnail_id(cursor, latest_thumbnail_id)
+            except Exception as e:
+                print(f"Error fetching thumbnail for playlist ID {p_id}: {e}")
+                latest_thumbnail = None
+                latest_thumbnail_id = None
+
             playlists.append({
-                'playlist_id': row[0],
+                'playlist_id': p_id,
                 'playlist_name': row[1],
-                'playlist_url': row[2]
+                'playlist_url': row[2],
+                'latest_title': latest_title,
+                'latest_description': latest_description,
+                'latest_thumbnail_url': f"/static/thumbnail_cache/{latest_thumbnail}" if latest_thumbnail else None,
+                'latest_thumbnail_id': latest_thumbnail_id,
+                'playlist_author': row[3],
+                'playlist_author_url': row[4]
             })
         return playlists    
     except Error as e:
@@ -697,8 +718,40 @@ def get_latest_video_thumbnail_by_id(cursor, video_id):
     pass
 
 def get_latest_report_id_for_playlist(cursor, playlist_id):
-    # to be implemented if needed in the future
-    pass
+    cursor.execute('''
+        SELECT report_id
+        FROM ytp_reports
+        WHERE playlist_id = %s
+        ORDER BY report_id DESC
+        LIMIT 1
+    ''', (playlist_id,))
+    result = cursor.fetchone()
+    return result[0] if result else None
+
+def get_latest_playlist_detail(cursor, playlist_id, change_type):
+    cursor.execute('''
+        SELECT d.change_value, d.thumbnail_id
+        FROM ytp_reports r
+        JOIN ytp_playlist_details d ON r.report_id = d.report_id
+        WHERE r.playlist_id = %s AND d.change_type = %s
+        ORDER BY r.report_id DESC
+        LIMIT 1
+    ''', (playlist_id, change_type))
+    result = cursor.fetchone()
+    if result:
+        # result[0] to change_value, result[1] to thumbnail_id
+        if change_type == 'thumbnail':
+            return result[1] # Zwracamy ID miniaturki
+        else:
+            return result[0] # Zwracamy tekst (tytuł lub opis)
+    return None
+
+def get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id):
+    cursor.execute('''
+        SELECT file_name FROM ytp_thumbnails WHERE thumbnail_id = %s
+    ''', (thumbnail_id,))
+    result = cursor.fetchone()
+    return result[0] if result else None
 
 def get_playlist_content_by_report_id(cursor, report_id):
     # to be implemented if needed in the future
