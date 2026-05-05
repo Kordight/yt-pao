@@ -19,6 +19,23 @@ function getPlaylistIdFromPath(pathname) {
   return match ? Number(match[1]) : null
 }
 
+function formatTimeSpan(totalSeconds) {
+  const seconds = Math.max(0, Math.round(Number(totalSeconds) || 0))
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const remainingSeconds = seconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${String(minutes).padStart(2, '0')}m ${String(remainingSeconds).padStart(2, '0')}s`
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${String(remainingSeconds).padStart(2, '0')}s`
+  }
+
+  return `${remainingSeconds}s`
+}
+
 function App() {
   const [playlists, setPlaylists] = useState([])
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(true)
@@ -232,15 +249,34 @@ function ProcessingOverlay({ activeTasks }) {
     return null
   }
 
+  const getProgressStats = (task) => {
+    const processedVideos = Number(task.processed_videos ?? task.processedVideos ?? 0)
+    const totalVideos = Number(task.total_videos ?? task.totalVideos ?? 0)
+    const remainingVideos = totalVideos > 0 ? Math.max(totalVideos - processedVideos, 0) : 0
+    const startedAt = new Date(task.created_at || Date.now()).getTime()
+    const elapsedSeconds = Math.max(0, (Date.now() - startedAt) / 1000)
+
+    let etaSeconds = null
+    if (processedVideos > 0 && totalVideos > processedVideos) {
+      const secondsPerVideo = elapsedSeconds / processedVideos
+      etaSeconds = Math.max(0, Math.round(secondsPerVideo * remainingVideos))
+    }
+
+    return {
+      processedVideos,
+      totalVideos,
+      remainingVideos,
+      elapsedSeconds,
+      etaSeconds,
+    }
+  }
+
   const formatETA = (task) => {
-    if (task.progress == null || task.progress >= 100 || task.progress <= 0) {
+    const { etaSeconds } = getProgressStats(task)
+    if (etaSeconds == null || task.progress == null || task.progress >= 100 || task.progress <= 0) {
       return ''
     }
-    const startedAt = new Date(task.created_at || Date.now()).getTime()
-    const elapsed = Math.max(0, (Date.now() - startedAt) / 1000)
-    const secondsPerPercent = elapsed / Math.max(1, task.progress)
-    const remainingSeconds = Math.ceil((100 - task.progress) * secondsPerPercent)
-    return `~${remainingSeconds}s`
+    return `~${formatTimeSpan(etaSeconds)}`
   }
 
   return (
@@ -252,12 +288,33 @@ function ProcessingOverlay({ activeTasks }) {
         {activeTasks.map(task => (
           <div key={task.taskId} className="yt-processingOverlay__item">
             <p className="yt-processingOverlay__message">{task.message}</p>
+            {task.current_video_title && (
+              <p className="yt-processingOverlay__submessage">{task.current_video_title}</p>
+            )}
             <div className="yt-processingOverlay__progressWrap">
               <div
                 className="yt-processingOverlay__progressBar"
                 style={{ width: `${task.progress || 0}%` }}
               />
             </div>
+            {(() => {
+              const stats = getProgressStats(task)
+              return (
+                <div className="yt-processingOverlay__stats">
+                  <span>
+                    {stats.totalVideos > 0
+                      ? `${stats.processedVideos}/${stats.totalVideos} videos`
+                      : `${Math.round(task.progress || 0)}% complete`}
+                  </span>
+                  <span>
+                    {stats.totalVideos > 0
+                      ? `${stats.remainingVideos} left`
+                      : formatETA(task)}
+                  </span>
+                  <span>{formatTimeSpan(stats.elapsedSeconds)} elapsed</span>
+                </div>
+              )
+            })()}
             <div className="yt-processingOverlay__footer">
               <span>{Math.round(task.progress || 0)}%</span>
               <span>{formatETA(task)}</span>

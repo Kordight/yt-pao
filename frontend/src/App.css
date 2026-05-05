@@ -187,6 +187,16 @@ input {
   text-overflow: ellipsis;
 }
 
+.yt-processingOverlay__submessage {
+  margin: -4px 0 10px;
+  color: #ffb3b3;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  max-height: 2.6em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .yt-processingOverlay__progressWrap {
   width: 100%;
   height: 6px;
@@ -209,6 +219,23 @@ input {
   gap: 8px;
   color: #aaaaaa;
   font-size: 0.8rem;
+}
+
+.yt-processingOverlay__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+  color: #dddddd;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.yt-processingOverlay__stats span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 @media (max-width: 720px) {

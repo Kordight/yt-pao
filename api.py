@@ -99,7 +99,40 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
             update_processing_status(task_id, {
                 'status': 'processing',
                 'message': f'Processing {len(videos)} videos...',
-                'progress': 40
+                'progress': 40,
+                'processed_videos': 0,
+                'total_videos': len(videos),
+                'remaining_videos': len(videos),
+                'current_video_title': None,
+            })
+
+        def update_report_progress(processed_videos: int, total_videos: int, current_video_title: str = None, phase: str = 'processing'):
+            if not task_id:
+                return
+
+            total_videos = max(int(total_videos or 0), 0)
+            processed_videos = max(int(processed_videos or 0), 0)
+            remaining_videos = max(total_videos - processed_videos, 0)
+
+            if total_videos > 0:
+                if phase == 'saving':
+                    progress = 95
+                    message = 'Saving processed videos to the database...'
+                else:
+                    progress = 40 + ((processed_videos / total_videos) * 50)
+                    message = f'Processing video {processed_videos}/{total_videos}...'
+            else:
+                progress = 40
+                message = 'Processing playlist videos...'
+
+            update_processing_status(task_id, {
+                'status': phase,
+                'message': message if not current_video_title else f'{message} Current: {current_video_title}',
+                'progress': min(95, round(progress, 2)),
+                'processed_videos': processed_videos,
+                'total_videos': total_videos,
+                'remaining_videos': remaining_videos,
+                'current_video_title': current_video_title,
             })
 
         video_titles = [video.title for video in videos]
@@ -110,13 +143,6 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
         view_count = [video.view_count for video in videos]
         isvalid = [video.valid for video in videos]
         video_thumbnails = [video.thumbnail for video in videos]
-
-        if task_id:
-            update_processing_status(task_id, {
-                'status': 'saving',
-                'message': 'Saving to database...',
-                'progress': 70
-            })
 
         add_report(
             host,
@@ -140,6 +166,7 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
             {},
             playlist_author=playlist_data.get('uploader', None),
             playlist_author_url=playlist_data.get('uploader_url', None),
+            progress_callback=update_report_progress,
         )
 
         if task_id:
