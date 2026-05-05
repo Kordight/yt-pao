@@ -212,6 +212,29 @@ def create_database(host, user, password, database):
 
             update_collumnns_in_table('ytp_playlist_details', required_columns, expected_types, expected_nullable)
 
+            # Update playlist list
+
+            required_columns = {
+                'playlist_name': "MODIFY COLUMN playlist_name VARCHAR(255) NOT NULL",
+                'playlist_url': "MODIFY COLUMN playlist_url VARCHAR(255) NOT NULL",
+                'playlist_author': "ADD COLUMN playlist_author VARCHAR(255)",
+                'playlist_author_url': "ADD COLUMN playlist_author_url VARCHAR(255)"
+            }
+            expected_types = {
+                'playlist_name': 'varchar(255)',
+                'playlist_url': 'varchar(255)',
+                'playlist_author': 'varchar(255)',
+                'playlist_author_url': 'varchar(255)'
+            }
+            expected_nullable = {
+                'playlist_name': False,
+                'playlist_url': False,
+                'playlist_author': True,
+                'playlist_author_url': True
+            }
+
+            update_collumnns_in_table('ytp_playlists', required_columns, expected_types, expected_nullable)
+
             # Ensure thumbnail_id and its constraint exist in ytp_playlist_details
             cursor.execute(f"""
                 SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
@@ -523,11 +546,8 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
 
     else:
         print(f"[ERROR] Video ID {video_id} ('{video_title}') has NO thumbnail provided by yt-dlp!")
-
-
-
     
-def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails=None, downloaded_thumbnails_cache=None, batch_size=50):
+def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails=None, downloaded_thumbnails_cache=None, batch_size=50, playlist_author=None, playlist_author_url=None):
     conn = None  # Initialize conn to None
     try:
         conn = mysql.connector.connect(
@@ -549,12 +569,34 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
 
             if result:
                 playlist_id = result[0]
+                # Fill ytp_playlists columns if null in database but available from yt-dlp
+                cursor.execute('''
+                    SELECT playlist_name, playlist_author, playlist_author_url
+                    FROM ytp_playlists
+                    WHERE playlist_id = %s
+                ''', (playlist_id,))
+                existing_playlist = cursor.fetchone()
+                existing_name, existing_author, existing_author_url = existing_playlist
+                if (not existing_name or existing_name.strip() == '') and playlist_name:
+                    cursor.execute('''
+                        UPDATE ytp_playlists SET playlist_name = %s WHERE playlist_id = %s
+                    ''', (playlist_name, playlist_id))
+                if (not existing_author or existing_author.strip() == '') and playlist_author:
+                    cursor.execute('''
+                        UPDATE ytp_playlists SET playlist_author = %s WHERE playlist_id = %s
+                    ''', (playlist_author, playlist_id))
+                if (not existing_author_url or existing_author_url.strip() == '') and playlist_author_url:
+                    cursor.execute('''
+                        UPDATE ytp_playlists SET playlist_author_url = %s WHERE playlist_id = %s
+                    ''', (playlist_author_url, playlist_id))                      
+                    
+                print(f"[Playlist] Playlist already in database (id: {playlist_id})")
             else:
                 # Add playlist
                 cursor.execute('''
-                INSERT INTO ytp_playlists (playlist_name, playlist_url)
-                VALUES (%s, %s)
-                ''', (playlist_name, playlist_url))
+                INSERT INTO ytp_playlists (playlist_name, playlist_url, playlist_author, playlist_author_url)
+                VALUES (%s, %s, %s, %s)
+                ''', (playlist_name, playlist_url, playlist_author, playlist_author_url))
                 conn.commit()  # Commit after inserting the playlist
                 playlist_id = cursor.lastrowid
 
@@ -584,7 +626,7 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
 
                 if video_result:
                     video_id = video_result[0]
-                    print(f"[Video {index + 1}/{total_videos}] Duplicate video in playlist (or already in DB), reusing ID: {video_id}")
+                    # print(f"[Video {index + 1}/{total_videos}] Duplicate video in playlist (or already in DB), reusing ID: {video_id}")
                 else:
                     # Add video
                     cursor.execute('''
@@ -592,6 +634,7 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ''', (title, link, length, uploader_row, uploader_url_row, view_count_row, isvalid_row))
                     video_id = cursor.lastrowid
+                    print(f"[Video {index + 1}/{total_videos}] Added new video to database with ID: {video_id}")
 
                 # Add report detail
                 cursor.execute('''
@@ -615,3 +658,56 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
         if conn and conn.is_connected():
             cursor.close()
             conn.close()
+
+def create_cursor(host, user, password, database):
+    try:
+        conn = mysql.connector.connect(
+            host=host,
+            user=user,
+            password=password,
+            database=database,
+            port=3306)
+        if conn.is_connected():
+            return conn.cursor(), conn
+    except Error as e:
+        print(f"Error: {e}")
+        return None, None
+
+def get_all_playlists(cursor):
+    try:
+        cursor.execute('SELECT playlist_id, playlist_name, playlist_url FROM ytp_playlists')
+        playlists = []
+        for row in cursor.fetchall():
+            playlists.append({
+                'playlist_id': row[0],
+                'playlist_name': row[1],
+                'playlist_url': row[2]
+            })
+        return playlists    
+    except Error as e:
+        print(f"Error: {e}")
+        return []
+
+def get_latest_playlist_thumbnail_by_id(cursor, playlist_id):
+    # to be implemented if needed in the future
+    pass
+
+def get_latest_video_thumbnail_by_id(cursor, video_id):
+    # to be implemented if needed in the future
+    pass
+
+def get_latest_report_id_for_playlist(cursor, playlist_id):
+    # to be implemented if needed in the future
+    pass
+
+def get_playlist_content_by_report_id(cursor, report_id):
+    # to be implemented if needed in the future
+    pass
+
+def get_video_details_by_report_id(cursor, report_id, video_id):
+    # to be implemented if needed in the future
+    pass
+
+def get_video_history_by_video_id(cursor, video_id):
+    # to be implemented if needed in the future
+    pass
