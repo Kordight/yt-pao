@@ -693,6 +693,8 @@ def get_all_playlists(cursor):
                 latest_thumbnail = None
                 latest_thumbnail_id = None
 
+            video_count = get_playlist_length_by_report_id(cursor, get_latest_report_id_for_playlist(cursor, p_id))
+
             playlists.append({
                 'playlist_id': p_id,
                 'playlist_name': row[1],
@@ -702,7 +704,8 @@ def get_all_playlists(cursor):
                 'latest_thumbnail_url': f"/static/thumbnail_cache/{latest_thumbnail}" if latest_thumbnail else None,
                 'latest_thumbnail_id': latest_thumbnail_id,
                 'playlist_author': row[3],
-                'playlist_author_url': row[4]
+                'playlist_author_url': row[4],
+                'video_count': video_count
             })
         return playlists    
     except Error as e:
@@ -752,6 +755,15 @@ def get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id):
     ''', (thumbnail_id,))
     result = cursor.fetchone()
     return result[0] if result else None
+
+def get_playlist_length_by_report_id(cursor, report_id):
+    cursor.execute('''
+        SELECT COUNT(*) 
+        FROM ytp_report_details 
+        WHERE report_id = %s
+    ''', (report_id,))
+    result = cursor.fetchone()
+    return result[0] if result else 0
 
 def get_playlist_content_by_report_id(cursor, report_id):
     # to be implemented if needed in the future

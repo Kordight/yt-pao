@@ -1,40 +1,112 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
-function App() {
-  // 1. Zmienna do przechowywania naszych playlist
-  const [playlists, setPlaylists] = useState([])
+const API_BASE_URL = 'http://127.0.0.1:8000'
+const DEFAULT_THUMBNAIL = '/playlist-placeholder.svg'
 
-  // 2. Funkcja, która uruchamia się raz przy załadowaniu strony
+function App() {
+  const [playlists, setPlaylists] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+
   useEffect(() => {
+    const controller = new AbortController()
+
     async function fetchData() {
       try {
-        const response = await fetch('http://127.0.0.1:8000/api/playlists');
-        const data = await response.json();
-        const downloadedPlaylists = data.playlists;
-        setPlaylists(downloadedPlaylists);
-      } catch (error) {
-        console.error("Błąd pobierania danych:", error)
+        setIsLoading(true)
+        setError('')
+
+        const response = await fetch(`${API_BASE_URL}/api/playlists`, { signal: controller.signal })
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const data = await response.json()
+        setPlaylists(Array.isArray(data.playlists) ? data.playlists : [])
+      } catch (requestError) {
+        if (requestError.name !== 'AbortError') {
+          console.error('Błąd pobierania danych:', requestError)
+          setError('Nie udało się pobrać playlist z API.')
+        }
+      } finally {
+        setIsLoading(false)
       }
     }
+
     fetchData()
+
+    return () => controller.abort()
   }, [])
 
-  // 3. To, co wyświetla się na ekranie
+  const playlistCards = useMemo(() => playlists, [playlists])
+
   return (
-    <div>
-      {playlists.map(playlist => (
-        <div key={playlist.playlist_id}>
-          <p><strong>Nazwa playlisty:</strong> {playlist.latest_title || playlist.playlist_name}</p>
-          <p><strong>Link do playlisty:</strong> <a href={playlist.playlist_url} target="_blank" rel="noopener noreferrer">{playlist.playlist_url}</a></p>
-          <p><strong>Opis playlisty:</strong> {playlist.latest_description}</p>
-          <p><strong>Autor playlisty:</strong> {playlist.playlist_author}</p>
-          {playlist.latest_thumbnail_url && (
-             <img src={`http://127.0.0.1:8000${playlist.latest_thumbnail_url}`} alt="Thumbnail" style={{ width: '200px', height: 'auto' }} />
-          )}
+    <main className="yt-page">
+      <header className="yt-page__header">
+        <div>
+          <p className="yt-page__eyebrow">YT-PAO</p>
+          <h1 className="yt-page__title">Playlists</h1>
         </div>
-      ))}
-    </div>
+      </header>
+
+      {isLoading && <p className="yt-state">Ładowanie playlist...</p>}
+      {!isLoading && error && <p className="yt-state yt-state--error">{error}</p>}
+
+      {!isLoading && !error && (
+        <section className="yt-grid" aria-label="Lista playlist">
+          {playlistCards.length === 0 ? (
+            <p className="yt-state">Brak playlist do wyświetlenia.</p>
+          ) : (
+            playlistCards.map((playlist) => {
+              const thumbnailSrc = playlist.latest_thumbnail_url
+                ? `${API_BASE_URL}${playlist.latest_thumbnail_url}`
+                : DEFAULT_THUMBNAIL
+              const title = playlist.latest_title || playlist.playlist_name || 'Bez tytułu'
+              const author = playlist.playlist_author || 'Nieznany autor'
+              const authorUrl = playlist.playlist_author_url || playlist.playlist_url || '#'
+              const videoCount = playlist.video_count ?? 0
+
+              return (
+                <article className="yt-card" key={playlist.playlist_id}>
+                  <a
+                    className="yt-card__thumbLink"
+                    href={playlist.playlist_url || authorUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Otwórz playlistę ${title}`}
+                  >
+                    <div className="yt-card__thumbWrap">
+                      <img className="yt-card__thumb" src={thumbnailSrc} alt={title} />
+                      <span className="yt-card__badge">{videoCount} filmów</span>
+                    </div>
+                  </a>
+
+                  <div className="yt-card__body">
+                    <div className="yt-card__content">
+                      <h2 className="yt-card__title">{title}</h2>
+                      <p className="yt-card__meta">
+                        <a href={authorUrl} target="_blank" rel="noreferrer">
+                          {author}
+                        </a>
+                      </p>
+                      {playlist.latest_description && (
+                        <p className="yt-card__description">{playlist.latest_description}</p>
+                      )}
+                    </div>
+
+                    <button className="yt-card__menu" type="button" aria-label="Więcej opcji">
+                      ⋮
+                    </button>
+                  </div>
+                </article>
+              )
+            })
+          )}
+        </section>
+      )}
+    </main>
   )
 }
 
