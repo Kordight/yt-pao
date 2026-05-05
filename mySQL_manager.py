@@ -499,6 +499,12 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
             VALUES (%s, %s, %s, %s)
         ''', (video_id, report_id, 'availability', str(availability)))
     
+    # Skip thumbnail download for unavailable/deleted videos to prevent 404 loops on placeholder URLs
+    normalized_availability = normalize_boolean_flag(availability, default=1)
+    if normalized_availability == 0:
+        print(f"[Video {video_id}] Skipping thumbnail download for unavailable video")
+        return
+    
     if video_thumbnail:
         cached_thumbnail_id = get_cached_thumbnail_id(cursor, video_thumbnail)
         if cached_thumbnail_id:
