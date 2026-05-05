@@ -1028,13 +1028,12 @@ def get_playlist_content_by_report_id(cursor, report_id):
                 cursor.execute('''
                     SELECT v.video_id, v.video_title, v.video_url, v.video_duration, v.uploader, v.uploader_url, v.view_count, v.valid,
                         (
-                            SELECT t.file_name
-                            FROM ytp_video_details d
-                            JOIN ytp_thumbnails t ON d.thumbnail_id = t.thumbnail_id
-                            WHERE d.video_id = v.video_id AND d.change_type = 'thumbnail' AND d.report_id <= %s
-                            ORDER BY d.report_id DESC, d.change_id DESC
-                            LIMIT 1
-                        ) AS thumbnail_file
+                                    SELECT d.thumbnail_id
+                                    FROM ytp_video_details d
+                                    WHERE d.video_id = v.video_id AND d.change_type = 'thumbnail' AND d.report_id <= %s
+                                    ORDER BY d.report_id DESC, d.change_id DESC
+                                    LIMIT 1
+                                ) AS thumbnail_id
                     FROM ytp_videos v
                     JOIN ytp_report_details rd ON rd.video_id = v.video_id
                     WHERE rd.report_id = %s
@@ -1042,7 +1041,8 @@ def get_playlist_content_by_report_id(cursor, report_id):
                 ''', (report_id, report_id))
 
                 for row in cursor.fetchall():
-                    vid, base_title, video_url, duration, uploader, uploader_url, view_count, valid, thumbnail_file = row
+                    vid, base_title, video_url, duration, uploader, uploader_url, view_count, valid, thumbnail_id = row
+                    thumbnail_file = get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id) if thumbnail_id else None
                     thumbnail_url = f"/static/thumbnail_cache/{thumbnail_file}" if thumbnail_file else None
 
                     video_obj = {
