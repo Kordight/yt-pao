@@ -49,6 +49,22 @@ CLI (original terminal mode):
 python main.py --playlistLink <playlist_link> --resultFormat <cmd|txt|json|csv|html|mySQL> --listMode <all|available|unavailable>
 ```
 
+Thumbnail repair (repair missing thumbnail files from database):
+
+```bash
+# Scan database and re-download missing thumbnail files
+python main.py --repair-thumbnails
+
+# In Docker:
+docker exec yt-pao-backend-1 python main.py --repair-thumbnails
+```
+
+This is useful when thumbnail files are missing from disk but still referenced in the database. The repair operation will:
+- Scan all stored thumbnails in the database
+- Check if files physically exist on disk
+- Re-download missing files from their original source URL
+- Update SHA256 hashes in the database
+
 Web API (development):
 
 ```bash

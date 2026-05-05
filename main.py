@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 import yaml
 from html_manager import generate_html_list, read_html_template, extract_head_and_body, generate_html_list_invalid_videos
-from mySQL_manager import add_report, create_database
+from mySQL_manager import add_report, create_database, repair_missing_thumbnails, load_db_config
 
 def process_playlist_URL(playlist_URL):
     pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
@@ -32,13 +32,20 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Interpretation of flags and YouTube playlist link.")
 
     # Define flags
-    parser.add_argument('--playlistLink', type=str, required=True, help="The YouTube playlist link.")
-    parser.add_argument('--resultFormat', type=str, required=True, choices=['cmd', 'txt', 'json', 'mySQL', 'csv', 'html'],
+    parser.add_argument('--playlistLink', type=str, required=False, help="The YouTube playlist link.")
+    parser.add_argument('--resultFormat', type=str, required=False, choices=['cmd', 'txt', 'json', 'mySQL', 'csv', 'html'],
                         help="The report format. Available options: cmd, txt, json, mySQL, csv, html.")
-    parser.add_argument('--listMode', type=str, required=True, choices=['all', 'unavailable', 'available'],
+    parser.add_argument('--listMode', type=str, required=False, choices=['all', 'unavailable', 'available'],
                         help="The work mode. Available options: all, unavailable, available.")
+    parser.add_argument('--repair-thumbnails', action='store_true', help="Scan and repair missing thumbnail files from database.")
     # Parse arguments
     args = parser.parse_args()
+    
+    # Validate arguments
+    if not args.repair_thumbnails:
+        if not args.playlistLink or not args.resultFormat or not args.listMode:
+            parser.error("--playlistLink, --resultFormat, and --listMode are required unless using --repair-thumbnails")
+    
     # Return parsed arguments
     return args
 
@@ -132,8 +139,23 @@ def load_db_config():
 
 def main():
     generate_config_file()
-    date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     args = parse_args()
+    
+    # Handle --repair-thumbnails option
+    if args.repair_thumbnails:
+        db_config = load_db_config()
+        db_host = db_config.get('host', 'localhost')
+        db_user = db_config.get('user', 'yt-pao')
+        db_password = db_config.get('password', 'password')
+        db_name = db_config.get('database', 'yt_pao_db')
+        db_port = int(db_config.get('port', 3306) or 3306)
+        
+        print("[CLI] Starting thumbnail repair scan...")
+        total, repaired, failed = repair_missing_thumbnails(db_host, db_user, db_password, db_name, db_port)
+        print(f"[CLI] Repair complete: {total} total, {repaired} repaired, {failed} failed")
+        return
+    
+    date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     playlist_data, videos = parse_playlist(process_playlist_URL(args.playlistLink), args.listMode)
     playlist_name = playlist_data['playlist_name']
     playlist_description = playlist_data['description']

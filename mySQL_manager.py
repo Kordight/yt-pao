@@ -961,6 +961,102 @@ def get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id):
     # If re-download failed, return None so caller can handle it
     return None
 
+def repair_missing_thumbnails(host, user, password, database, port=3306):
+    """
+    Scan all thumbnails in DB and repair missing files by re-downloading them.
+    Returns tuple: (total_scanned, repaired_count, failed_count)
+    """
+    conn = None
+    try:
+        db_port = int(port or 3306)
+        conn = mysql.connector.connect(
+            host=host,
+            user=user,
+            password=password,
+            database=database,
+            port=db_port,
+            auth_plugin='mysql_native_password')
+        
+        if not conn.is_connected():
+            print("[Repair] Failed to connect to database")
+            return (0, 0, 0)
+        
+        cursor = conn.cursor()
+        
+        # Fetch all thumbnails
+        cursor.execute('''
+            SELECT thumbnail_id, file_name, source_url, sha256_hash
+            FROM ytp_thumbnails
+            ORDER BY thumbnail_id ASC
+        ''')
+        
+        all_thumbnails = cursor.fetchall()
+        total = len(all_thumbnails)
+        repaired = 0
+        failed = 0
+        
+        print(f"[Repair] Starting scan of {total} thumbnails...")
+        
+        for thumbnail_id, file_name, source_url, current_hash in all_thumbnails:
+            file_path = os.path.join('static', 'thumbnail_cache', file_name)
+            
+            if os.path.exists(file_path):
+                # File exists, check if we need to validate
+                continue
+            
+            # File missing
+            print(f"[Repair] Thumbnail {thumbnail_id} missing: {file_name}")
+            
+            if not source_url:
+                print(f"[Repair] No source_url to re-download {file_name}, skipping")
+                failed += 1
+                continue
+            
+            try:
+                # Download
+                image_content = download_image(source_url)
+                if not image_content:
+                    print(f"[Repair] Failed to download {file_name} from {source_url}")
+                    failed += 1
+                    continue
+                
+                # Save with original filename
+                saved_name = save_image(image_content, file_name)
+                if not saved_name:
+                    print(f"[Repair] Failed to save {file_name}")
+                    failed += 1
+                    continue
+                
+                # Calculate new hash
+                new_hash = calculate_sha256(image_content)
+                if new_hash:
+                    cursor.execute('''
+                        UPDATE ytp_thumbnails 
+                        SET sha256_hash = %s 
+                        WHERE thumbnail_id = %s
+                    ''', (new_hash, thumbnail_id))
+                    conn.commit()
+                    print(f"[Repair] Successfully repaired thumbnail_id {thumbnail_id}: {file_name}")
+                    repaired += 1
+                else:
+                    print(f"[Repair] Failed to calculate SHA256 for {file_name}")
+                    failed += 1
+                    
+            except Exception as e:
+                print(f"[Repair] Error repairing thumbnail_id {thumbnail_id}: {e}")
+                failed += 1
+        
+        print(f"[Repair] Done. Total: {total}, Repaired: {repaired}, Failed: {failed}")
+        return (total, repaired, failed)
+        
+    except Error as e:
+        print(f"[Repair] Database error: {e}")
+        return (0, 0, 0)
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 def get_playlist_length_by_report_id(cursor, report_id):
     cursor.execute('''
         SELECT COUNT(*) 
