@@ -22,6 +22,8 @@ def download_image(url, retry_count=0, max_retries=3):
     """Download image with rate limiting, user-agent rotation, and retry logic."""
     global DOWNLOAD_COUNT
 
+    print(f"Downloading image: {url} (attempt {retry_count + 1}/{max_retries})")
+
     if retry_count > max_retries:
         print(f"Error downloading image: Max retries exceeded for {url}")
         return None
@@ -79,6 +81,7 @@ def save_image(image_content, file_name=None):
             if img.mode in ('RGBA', 'LA', 'P'):
                 img = img.convert('RGB')
             img.save(file_path, format='JPEG', quality=95)
+            print(f"Image saved: {file_path}")
         return file_name
     except Exception as e:
         print(f"Error converting image to JPEG: {e}")
