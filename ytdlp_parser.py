@@ -2,7 +2,7 @@ import yt_dlp
 
 class Video:
 
-    def __init__(self, title, url, duration, uploader, view_count=0, video_uploader_url=None, valid=1):
+    def __init__(self, title, url, duration, uploader, view_count=0, video_uploader_url=None, valid=1, thumbnail_url=None):
         self.title = title
         self.url = url
         self.duration = duration
@@ -10,6 +10,7 @@ class Video:
         self.view_count = view_count
         self.uploader_url = video_uploader_url
         self.valid = valid
+        self.thumbnail = thumbnail_url
 
     def __eq__(self, other):
         if isinstance(other, Video):
@@ -29,6 +30,13 @@ def get_playlist_content(playlist_link, ydl_opts):
             print(f"ERROR: Cannot download playlist data: {e}")
             return None, []
 
+    playlist_thumbnails = playlist_dict.get('thumbnails', [])
+    if playlist_thumbnails:
+        best_playlist_thumb_url = playlist_thumbnails[-1].get('url')
+    else:
+        print("No thumbnails available for the playlist.")
+        best_playlist_thumb_url = None
+
     video_entries = playlist_dict.get('entries', [])
     videos = []
     for entry in video_entries:
@@ -38,20 +46,24 @@ def get_playlist_content(playlist_link, ydl_opts):
         video_uploader = entry.get('uploader', 'Unknown')
         video_uploader_url = entry.get('uploader_url', 'Unknown')
         video_view_count = entry.get('view_count', 0)  
-        videos.append(Video(video_title, video_url, video_duration, video_uploader, video_view_count, video_uploader_url))
-        playlist_duration = sum(
-            entry['duration'] if isinstance(entry.get('duration'), (int, float)) else 0
-            for entry in video_entries
-        )    
-        playlist_data = {
-        'playlist_name': playlist_dict.get('title', 'Unknown Playlist'),
-        'video_entries': len(video_entries),
-        'description': playlist_dict.get('description', 'No description available'),
-        'playlist_id': playlist_dict.get('id', 'Unknown ID'),
-        'uploader': playlist_dict.get('uploader', 'Unknown uploader'),
-        'uploader_url': playlist_dict.get('uploader_url', 'Unknown URL'),
-        'url': playlist_dict.get('webpage_url', playlist_link),  
-        'playlist_duration': playlist_duration
+        video_best_thumbnail_url = None
+        if 'thumbnails' in entry and entry['thumbnails']:
+            video_best_thumbnail_url = entry['thumbnails'][-1].get('url')
+        videos.append(Video(title=video_title, url=video_url, duration=video_duration, uploader=video_uploader, view_count=video_view_count, video_uploader_url=video_uploader_url, thumbnail_url=video_best_thumbnail_url))
+    playlist_duration = sum(
+        entry['duration'] if isinstance(entry.get('duration'), (int, float)) else 0
+        for entry in video_entries
+    )    
+    playlist_data = {
+    'playlist_name': playlist_dict.get('title', 'Unknown Playlist'),
+    'video_entries': len(video_entries),
+    'description': playlist_dict.get('description', 'No description available'),
+    'playlist_id': playlist_dict.get('id', 'Unknown ID'),
+    'uploader': playlist_dict.get('uploader', 'Unknown uploader').removeprefix('by ').strip(),    'uploader_url': playlist_dict.get('uploader_url', 'Unknown URL'),
+    'url': playlist_dict.get('webpage_url', playlist_link),  
+    'playlist_duration': playlist_duration,
+    'playlist_privacy': playlist_dict.get('availability', 'public'),
+    'playlist_thumbnail': best_playlist_thumb_url
     }
     return playlist_data, videos
 
@@ -90,6 +102,10 @@ def find_unavailable_videos(playlist_link):
     unavailable_videos = [video for video in videos_all if video.url not in filtered_urls]
     for video in unavailable_videos:
         video.valid = 0
+    
+    # Ensure all valid flags are integers for sorting
+    for video in videos_filtered + unavailable_videos:
+        video.valid = int(video.valid) if video.valid else 1
     return playlist_data_all, unavailable_videos
 
 

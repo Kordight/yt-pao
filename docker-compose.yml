@@ -1,0 +1,42 @@
+version: '3.8'
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-yt_pao_db}
+      MYSQL_USER: ${DB_USER:-yt-pao}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+    volumes:
+      - db_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-yt-pao}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-yt_pao_db}
+    volumes:
+      - thumbnails:/app/static/thumbnail_cache
+    ports:
+      - "8001:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3002:80"
+
+volumes:
+  db_data:
+  thumbnails:

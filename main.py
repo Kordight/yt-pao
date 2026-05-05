@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 import yaml
 from html_manager import generate_html_list, read_html_template, extract_head_and_body, generate_html_list_invalid_videos
-from mySQL_manager import add_report, create_database
+from mySQL_manager import add_report, create_database, repair_missing_thumbnails
 
 def process_playlist_URL(playlist_URL):
     pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
@@ -32,13 +32,20 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Interpretation of flags and YouTube playlist link.")
 
     # Define flags
-    parser.add_argument('--playlistLink', type=str, required=True, help="The YouTube playlist link.")
-    parser.add_argument('--resultFormat', type=str, required=True, choices=['cmd', 'txt', 'json', 'mySQL', 'csv', 'html'],
+    parser.add_argument('--playlistLink', type=str, required=False, help="The YouTube playlist link.")
+    parser.add_argument('--resultFormat', type=str, required=False, choices=['cmd', 'txt', 'json', 'mySQL', 'csv', 'html'],
                         help="The report format. Available options: cmd, txt, json, mySQL, csv, html.")
-    parser.add_argument('--listMode', type=str, required=True, choices=['all', 'unavailable', 'available'],
+    parser.add_argument('--listMode', type=str, required=False, choices=['all', 'unavailable', 'available'],
                         help="The work mode. Available options: all, unavailable, available.")
+    parser.add_argument('--repair-thumbnails', action='store_true', help="Scan and repair missing thumbnail files from database.")
     # Parse arguments
     args = parser.parse_args()
+    
+    # Validate arguments
+    if not args.repair_thumbnails:
+        if not args.playlistLink or not args.resultFormat or not args.listMode:
+            parser.error("--playlistLink, --resultFormat, and --listMode are required unless using --repair-thumbnails")
+    
     # Return parsed arguments
     return args
 
@@ -97,17 +104,65 @@ def generate_config_file():
                 yaml.dump(config, file, default_flow_style=False)
 
 def load_db_config():
-    with open('config.yaml', 'r') as file:
-        config = yaml.safe_load(file)
-    return config['database']
+    # Load defaults from config file if present, then override with environment variables
+    cfg = {}
+    if os.path.exists('config.yaml'):
+        with open('config.yaml', 'r') as file:
+            loaded = yaml.safe_load(file) or {}
+            cfg = loaded.get('database', {})
+
+    # Environment overrides (allow using external DB or containerized DB)
+    env_host = os.environ.get('DB_HOST')
+    env_port = os.environ.get('DB_PORT')
+    env_user = os.environ.get('DB_USER')
+    env_password = os.environ.get('DB_PASSWORD')
+    env_name = os.environ.get('DB_NAME')
+
+    if env_host:
+        cfg['host'] = env_host
+    if env_port:
+        cfg['port'] = env_port
+    if env_user:
+        cfg['user'] = env_user
+    if env_password:
+        cfg['password'] = env_password
+    if env_name:
+        cfg['database'] = env_name
+
+    # sensible defaults
+    cfg.setdefault('host', 'localhost')
+    cfg.setdefault('user', 'yt-pao')
+    cfg.setdefault('password', 'password')
+    cfg.setdefault('database', 'yt_pao_db')
+
+    return cfg
 
 def main():
     generate_config_file()
-    date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     args = parse_args()
+    
+    # Handle --repair-thumbnails option
+    if args.repair_thumbnails:
+        db_config = load_db_config()
+        db_host = db_config.get('host', 'localhost')
+        db_user = db_config.get('user', 'yt-pao')
+        db_password = db_config.get('password', 'password')
+        db_name = db_config.get('database', 'yt_pao_db')
+        db_port = int(db_config.get('port', 3306) or 3306)
+        
+        print("[CLI] Starting thumbnail repair scan...")
+        total, repaired, failed = repair_missing_thumbnails(db_host, db_user, db_password, db_name, db_port)
+        print(f"[CLI] Repair complete: {total} total, {repaired} repaired, {failed} failed")
+        return
+    
+    date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     playlist_data, videos = parse_playlist(process_playlist_URL(args.playlistLink), args.listMode)
     playlist_name = playlist_data['playlist_name']
     playlist_description = playlist_data['description']
+    playlist_privacy = playlist_data['playlist_privacy']
+    playlist_thumbnail = playlist_data.get('playlist_thumbnail', None)
+    playlist_author = playlist_data.get('uploader', None)
+    playlist_author_url = playlist_data.get('uploader_url', None)
     folder_path = f"Output/{playlist_name}_{get_playlist_id(playlist_data['url'])}"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
@@ -214,7 +269,9 @@ def main():
     
     elif args.resultFormat == "mySQL":
             db_config = load_db_config()
-            create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'])
+            db_port = int(db_config.get('port', 3306) or 3306)
+            create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'], db_port)
+            downloaded_thumbnails_cache = {}
             video_titles = [video.title for video in videos]
             saved_video_links = [video.url for video in videos]
             video_durations = [video.duration for video in videos]
@@ -222,9 +279,13 @@ def main():
             uploader_url = [video.uploader_url for video in videos]
             view_count = [video.view_count for video in videos]
             isvalid = [video.valid for video in videos]
-            add_report(db_config['host'], db_config['user'], db_config['password'], db_config['database'],
-                    video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description)
-            print("Report saved to MySQL database.")
+            video_thumbnails = [video.thumbnail for video in videos]
+            saved = add_report(db_config['host'], db_config['user'], db_config['password'], db_config['database'], db_port,
+                video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails, downloaded_thumbnails_cache, playlist_author=playlist_author, playlist_author_url=playlist_author_url)
+            if saved:
+                print("Report saved to MySQL database.")
+            else:
+                print("Report was not saved to MySQL database.")
 
 if __name__ == "__main__":
     main()
