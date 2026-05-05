@@ -1,6 +1,7 @@
 import mysql.connector
 from mysql.connector import Error
 from datetime import datetime, timezone
+import os
 from thumbnail_parser import download_image, calculate_sha256, save_image
 
 def normalize_view_count(view_count):
@@ -875,10 +876,34 @@ def get_wayback_machine_search_url(video_url):
 
 def get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id):
     cursor.execute('''
-        SELECT file_name FROM ytp_thumbnails WHERE thumbnail_id = %s
+        SELECT file_name, source_url FROM ytp_thumbnails WHERE thumbnail_id = %s
     ''', (thumbnail_id,))
     result = cursor.fetchone()
-    return result[0] if result else None
+    if not result:
+        return None
+    
+    file_name, source_url = result
+    file_path = os.path.join('static', 'thumbnail_cache', file_name)
+    
+    # Check if file actually exists on disk
+    if os.path.exists(file_path):
+        return file_name
+    
+    # File missing: re-download and save with the same filename
+    print(f"[Thumbnail] File missing on disk: {file_name}, re-downloading from {source_url}")
+    if source_url:
+        try:
+            image_content = download_image(source_url)
+            if image_content:
+                saved_name = save_image(image_content, file_name)
+                if saved_name:
+                    print(f"[Thumbnail] Re-downloaded and saved as: {saved_name}")
+                    return saved_name
+        except Exception as e:
+            print(f"[Thumbnail] Failed to re-download: {e}")
+    
+    # If re-download failed, return None so caller can handle it
+    return None
 
 def get_playlist_length_by_report_id(cursor, report_id):
     cursor.execute('''

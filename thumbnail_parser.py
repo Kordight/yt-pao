@@ -64,12 +64,13 @@ def calculate_sha256(image_content):
     return sha256_hash.hexdigest()
 
 # Save image to disk as a real JPEG file
-def save_image(image_content):
+def save_image(image_content, file_name=None):
     if not image_content:
         return None
 
     os.makedirs('static/thumbnail_cache', exist_ok=True)
-    file_name = uuid.uuid4().hex + '.jpg'  # Generate a unique file name
+    if file_name is None:
+        file_name = uuid.uuid4().hex + '.jpg'  # Generate a unique file name
     file_path = os.path.join('static', 'thumbnail_cache', file_name)
 
     try:

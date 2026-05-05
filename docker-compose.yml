@@ -24,6 +24,8 @@ services:
       DB_USER: ${DB_USER:-yt-pao}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       DB_NAME: ${DB_NAME:-yt_pao_db}
+    volumes:
+      - thumbnails:/app/static/thumbnail_cache
     ports:
       - "8001:8000"
 
@@ -37,3 +39,4 @@ services:
 
 volumes:
   db_data:
+  thumbnails:
