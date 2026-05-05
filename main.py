@@ -97,9 +97,38 @@ def generate_config_file():
                 yaml.dump(config, file, default_flow_style=False)
 
 def load_db_config():
-    with open('config.yaml', 'r') as file:
-        config = yaml.safe_load(file)
-    return config['database']
+    # Load defaults from config file if present, then override with environment variables
+    cfg = {}
+    if os.path.exists('config.yaml'):
+        with open('config.yaml', 'r') as file:
+            loaded = yaml.safe_load(file) or {}
+            cfg = loaded.get('database', {})
+
+    # Environment overrides (allow using external DB or containerized DB)
+    env_host = os.environ.get('DB_HOST')
+    env_port = os.environ.get('DB_PORT')
+    env_user = os.environ.get('DB_USER')
+    env_password = os.environ.get('DB_PASSWORD')
+    env_name = os.environ.get('DB_NAME')
+
+    if env_host:
+        cfg['host'] = env_host
+    if env_port:
+        cfg['port'] = env_port
+    if env_user:
+        cfg['user'] = env_user
+    if env_password:
+        cfg['password'] = env_password
+    if env_name:
+        cfg['database'] = env_name
+
+    # sensible defaults
+    cfg.setdefault('host', 'localhost')
+    cfg.setdefault('user', 'yt-pao')
+    cfg.setdefault('password', 'password')
+    cfg.setdefault('database', 'yt_pao_db')
+
+    return cfg
 
 def main():
     generate_config_file()
