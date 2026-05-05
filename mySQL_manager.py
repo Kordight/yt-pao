@@ -2,6 +2,7 @@ import mysql.connector
 from mysql.connector import Error
 from datetime import datetime, timezone
 import os
+import yt_dlp
 from thumbnail_parser import download_image, calculate_sha256, save_image
 
 def normalize_view_count(view_count):
@@ -708,6 +709,10 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 video_thumbnail = video_thumbnails[index] if video_thumbnails and index < len(video_thumbnails) else None
                 update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id, video_thumbnail, downloaded_thumbnails_cache)
 
+            repaired_thumbnails, skipped_thumbnails = repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thumbnails_cache)
+            if repaired_thumbnails or skipped_thumbnails:
+                print(f"[Validate] Report {report_id}: repaired {repaired_thumbnails}, skipped {skipped_thumbnails}")
+
             if progress_callback:
                 progress_callback(total_videos, total_videos, playlist_name, 'saving')
 
@@ -917,6 +922,132 @@ def get_wayback_machine_search_url(video_url):
     if not video_url:
         return None
     return f'https://web.archive.org/web/*/{video_url}'
+
+def resolve_video_thumbnail_url(video_url):
+    if not video_url:
+        return None
+
+    try:
+        with yt_dlp.YoutubeDL({'quiet': True, 'skip_download': True}) as ydl:
+            video_info = ydl.extract_info(video_url, download=False)
+    except Exception as e:
+        print(f"[Validate] Failed to resolve thumbnail URL for {video_url}: {e}")
+        return None
+
+    thumbnail_url = video_info.get('thumbnail')
+    if thumbnail_url:
+        return thumbnail_url
+
+    thumbnails = video_info.get('thumbnails') or []
+    for thumbnail in reversed(thumbnails):
+        candidate_url = thumbnail.get('url')
+        if candidate_url:
+            return candidate_url
+
+    return None
+
+def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thumbnails_cache=None):
+    repaired = 0
+    skipped = 0
+
+    cursor.execute('''
+        SELECT rd.video_id, v.video_url, v.valid, d.thumbnail_id
+        FROM ytp_report_details rd
+        JOIN ytp_videos v ON v.video_id = rd.video_id
+        LEFT JOIN ytp_video_details d
+            ON d.video_id = rd.video_id
+           AND d.report_id = rd.report_id
+           AND d.change_type = 'thumbnail'
+        WHERE rd.report_id = %s
+        ORDER BY rd.detail_id ASC
+    ''', (report_id,))
+
+    report_videos = cursor.fetchall()
+    if not report_videos:
+        return repaired, skipped
+
+    if downloaded_thumbnails_cache is None:
+        downloaded_thumbnails_cache = {}
+
+    for video_id, video_url, video_valid, existing_thumbnail_id in report_videos:
+        if normalize_boolean_flag(video_valid, default=1) == 0:
+            skipped += 1
+            continue
+
+        if existing_thumbnail_id:
+            continue
+
+        thumbnail_url = resolve_video_thumbnail_url(video_url)
+        if not thumbnail_url:
+            print(f"[Validate] No thumbnail URL resolved for video_id {video_id}")
+            skipped += 1
+            continue
+
+        cached_entry = downloaded_thumbnails_cache.get(thumbnail_url)
+        image_content = cached_entry[1] if cached_entry else None
+        if image_content is None:
+            image_content = download_image(thumbnail_url)
+
+        if not image_content:
+            print(f"[Validate] Failed to download thumbnail for video_id {video_id}")
+            skipped += 1
+            continue
+
+        image_hash = calculate_sha256(image_content)
+        if not image_hash:
+            print(f"[Validate] Failed to hash thumbnail for video_id {video_id}")
+            skipped += 1
+            continue
+
+        downloaded_thumbnails_cache[thumbnail_url] = (image_hash, image_content)
+
+        cursor.execute('''
+            SELECT thumbnail_id
+            FROM ytp_thumbnails
+            WHERE sha256_hash = %s
+            LIMIT 1
+        ''', (image_hash,))
+        thumbnail_row = cursor.fetchone()
+
+        if thumbnail_row:
+            thumbnail_id = thumbnail_row[0]
+        else:
+            file_name = save_image(image_content)
+            if not file_name:
+                print(f"[Validate] Failed to save thumbnail for video_id {video_id}")
+                skipped += 1
+                continue
+
+            cursor.execute('''
+                INSERT INTO ytp_thumbnails (file_name, source_url, sha256_hash)
+                VALUES (%s, %s, %s)
+            ''', (file_name, thumbnail_url, image_hash))
+            thumbnail_id = cursor.lastrowid
+
+        cursor.execute('''
+            SELECT change_id
+            FROM ytp_video_details
+            WHERE video_id = %s AND report_id = %s AND change_type = 'thumbnail'
+            LIMIT 1
+        ''', (video_id, report_id))
+        existing_row = cursor.fetchone()
+
+        if existing_row:
+            cursor.execute('''
+                UPDATE ytp_video_details
+                SET change_value = %s, thumbnail_id = %s
+                WHERE change_id = %s
+            ''', (thumbnail_url, thumbnail_id, existing_row[0]))
+        else:
+            cursor.execute('''
+                INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value, thumbnail_id)
+                VALUES (%s, %s, 'thumbnail', %s, %s)
+            ''', (video_id, report_id, thumbnail_url, thumbnail_id))
+
+        print(f"[Validate] Repaired thumbnail for video_id {video_id}")
+        repaired += 1
+
+    return repaired, skipped
 
 def get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id):
     cursor.execute('''
