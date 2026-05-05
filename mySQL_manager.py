@@ -345,8 +345,9 @@ def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist
         cached_thumbnail_id = get_cached_thumbnail_id(cursor, playlist_thumbnail)
         if cached_thumbnail_id:
             print(f"[Playlist] Thumbnail already in database (id: {cached_thumbnail_id})")
+            # Fetch more info about the last stored thumbnail so we can verify the file
             cursor.execute('''
-                SELECT t.sha256_hash
+                SELECT d.thumbnail_id, t.file_name, t.source_url, t.sha256_hash
                 FROM ytp_reports r
                 JOIN ytp_playlist_details d ON r.report_id = d.report_id
                 JOIN ytp_thumbnails t ON d.thumbnail_id = t.thumbnail_id
@@ -354,8 +355,27 @@ def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist
                 ORDER BY r.report_id DESC
                 LIMIT 1
             ''', (playlist_id, report_id))
-            last_thumbnail_hash_result = cursor.fetchone()
-            last_thumbnail_hash = last_thumbnail_hash_result[0] if last_thumbnail_hash_result else None
+            last_thumbnail_result = cursor.fetchone()
+            last_thumbnail_hash = None
+            if last_thumbnail_result:
+                old_thumbnail_id, old_file_name, old_source_url, last_thumbnail_hash = last_thumbnail_result
+                old_file_path = os.path.join('static', 'thumbnail_cache', old_file_name)
+                if not os.path.exists(old_file_path):
+                    print(f"[Playlist] Old thumbnail file missing: {old_file_name}, attempting re-download from {old_source_url}")
+                    if old_source_url:
+                        try:
+                            old_image_content = download_image(old_source_url)
+                            if old_image_content:
+                                saved_name = save_image(old_image_content, old_file_name)
+                                if saved_name:
+                                    new_hash = calculate_sha256(old_image_content)
+                                    if new_hash:
+                                        cursor.execute('''UPDATE ytp_thumbnails SET sha256_hash = %s WHERE thumbnail_id = %s''', (new_hash, old_thumbnail_id))
+                                        last_thumbnail_hash = new_hash
+                                        print(f"[Playlist] Re-downloaded old thumbnail and updated SHA256 for thumbnail_id {old_thumbnail_id}")
+                        except Exception as e:
+                            print(f"[Playlist] Failed to re-download old thumbnail: {e}")
+            # If there was no previous hash (very first) insert a playlist detail record linking to cached thumbnail
             if last_thumbnail_hash is None:
                 cursor.execute('''
                     INSERT INTO ytp_playlist_details (report_id, change_type, change_value, thumbnail_id)
@@ -404,7 +424,7 @@ def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist
                     print("Warning: Failed to save playlist thumbnail to disk")
                     thumbnail_id = None
 
-            # Get the last recorded thumbnail hash for this playlist
+            # Get the last recorded thumbnail hash for this playlist (if any)
             cursor.execute('''
                 SELECT t.sha256_hash
                 FROM ytp_reports r
@@ -541,24 +561,42 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
                     print("Warning: Failed to save thumbnail image to disk")
                     thumbnail_id = None
 
-            # Get the last recorded thumbnail hash for this video
-            cursor.execute('''
-                SELECT t.sha256_hash
-                FROM ytp_video_details d
-                JOIN ytp_thumbnails t ON d.thumbnail_id = t.thumbnail_id
-                WHERE d.video_id = %s AND d.change_type = 'thumbnail' AND d.report_id < %s
-                ORDER BY d.report_id DESC
-                LIMIT 1
-            ''', (video_id, report_id))
-            last_thumbnail_hash_result = cursor.fetchone()
-            last_thumbnail_hash = last_thumbnail_hash_result[0] if last_thumbnail_hash_result else None
-
-            # If the thumbnail has changed, insert a new record into ytp_video_details
-            if incoming_image_hash != last_thumbnail_hash and thumbnail_id:
+                # Get the last recorded thumbnail info for this video so we can verify file existence
                 cursor.execute('''
-                    INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value, thumbnail_id)
-                    VALUES (%s, %s, 'thumbnail', %s, %s)
-                ''', (video_id, report_id, video_thumbnail, thumbnail_id))
+                    SELECT d.thumbnail_id, t.file_name, t.source_url, t.sha256_hash
+                    FROM ytp_video_details d
+                    JOIN ytp_thumbnails t ON d.thumbnail_id = t.thumbnail_id
+                    WHERE d.video_id = %s AND d.change_type = 'thumbnail' AND d.report_id < %s
+                    ORDER BY d.report_id DESC
+                    LIMIT 1
+                ''', (video_id, report_id))
+                last_thumbnail_result = cursor.fetchone()
+                last_thumbnail_hash = None
+                if last_thumbnail_result:
+                    old_thumbnail_id, old_file_name, old_source_url, last_thumbnail_hash = last_thumbnail_result
+                    old_file_path = os.path.join('static', 'thumbnail_cache', old_file_name)
+                    if not os.path.exists(old_file_path):
+                        print(f"[Video {video_id}] Old thumbnail file missing: {old_file_name}, attempting re-download from {old_source_url}")
+                        if old_source_url:
+                            try:
+                                old_image_content = download_image(old_source_url)
+                                if old_image_content:
+                                    saved_name = save_image(old_image_content, old_file_name)
+                                    if saved_name:
+                                        new_hash = calculate_sha256(old_image_content)
+                                        if new_hash:
+                                            cursor.execute('''UPDATE ytp_thumbnails SET sha256_hash = %s WHERE thumbnail_id = %s''', (new_hash, old_thumbnail_id))
+                                            last_thumbnail_hash = new_hash
+                                            print(f"[Video {video_id}] Re-downloaded old thumbnail and updated SHA256 for thumbnail_id {old_thumbnail_id}")
+                            except Exception as e:
+                                print(f"[Video {video_id}] Failed to re-download old thumbnail: {e}")
+
+                # If the thumbnail has changed, insert a new record into ytp_video_details
+                if incoming_image_hash != last_thumbnail_hash and thumbnail_id:
+                    cursor.execute('''
+                        INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value, thumbnail_id)
+                        VALUES (%s, %s, 'thumbnail', %s, %s)
+                    ''', (video_id, report_id, video_thumbnail, thumbnail_id))
 
     else:
         print(f"[ERROR] Video ID {video_id} ('{video_title}') has NO thumbnail provided by yt-dlp!")
@@ -897,6 +935,18 @@ def get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id):
             if image_content:
                 saved_name = save_image(image_content, file_name)
                 if saved_name:
+                    # Update SHA256 in DB for this thumbnail_id
+                    try:
+                        new_hash = calculate_sha256(image_content)
+                        if new_hash:
+                            cursor.execute('''SELECT thumbnail_id FROM ytp_thumbnails WHERE file_name = %s''', (file_name,))
+                            find = cursor.fetchone()
+                            if find:
+                                tid = find[0]
+                                cursor.execute('''UPDATE ytp_thumbnails SET sha256_hash = %s WHERE thumbnail_id = %s''', (new_hash, tid))
+                                print(f"[Thumbnail] Re-downloaded and updated SHA256 for thumbnail_id {tid}")
+                    except Exception as e:
+                        print(f"[Thumbnail] Failed to update SHA256 after re-download: {e}")
                     print(f"[Thumbnail] Re-downloaded and saved as: {saved_name}")
                     return saved_name
         except Exception as e:
