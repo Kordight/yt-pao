@@ -57,7 +57,7 @@ function App() {
       {!isLoading && !error && (
         <section className="yt-grid" aria-label="Lista playlist">
           {playlistCards.length === 0 ? (
-            <p className="yt-state">Brak playlist do wyświetlenia.</p>
+            <p className="yt-state">No playlists available.</p>
           ) : (
             playlistCards.map((playlist) => {
               const thumbnailSrc = playlist.latest_thumbnail_url
@@ -79,7 +79,7 @@ function App() {
                   >
                     <div className="yt-card__thumbWrap">
                       <img className="yt-card__thumb" src={thumbnailSrc} alt={title} />
-                      <span className="yt-card__badge">{videoCount} filmów</span>
+                      <span className="yt-card__badge">{videoCount} videos</span>
                     </div>
                   </a>
 
@@ -96,7 +96,7 @@ function App() {
                       )}
                     </div>
 
-                    <button className="yt-card__menu" type="button" aria-label="Więcej opcji">
+                    <button className="yt-card__menu" type="button" aria-label="Options">
                       ⋮
                     </button>
                   </div>
