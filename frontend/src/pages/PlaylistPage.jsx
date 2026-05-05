@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { API_BASE_URL, DEFAULT_THUMBNAIL, formatCompactNumber, formatDuration, resolveThumbnailSrc } from '../utils/formatters'
+import { API_BASE_URL, DEFAULT_THUMBNAIL, formatCompactNumber, formatDuration, formatPlaylistDuration, resolveThumbnailSrc } from '../utils/formatters'
 
-function PlaylistPage({ playlistId, onBack }) {
+function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null)
   const [reports, setReports] = useState([])
   const [selectedReportIndex, setSelectedReportIndex] = useState(0)
@@ -94,6 +94,29 @@ function PlaylistPage({ playlistId, onBack }) {
     return () => controller.abort()
   }, [playlistId, reports, selectedReportIndex])
 
+  useEffect(() => {
+    if (!activeTask) {
+      return
+    }
+
+    if (activeTask.status === 'completed') {
+      setActionStatus('Report completed! Refreshing data...')
+
+      const reportsResponse = fetch(`${API_BASE_URL}/api/playlists/${playlistId}/reports`)
+        .then(res => res.json())
+        .then(reportsData => {
+          const nextReports = Array.isArray(reportsData.reports) ? reportsData.reports : []
+          setReports(nextReports)
+          if (nextReports.length > 0) {
+            setSelectedReportIndex(nextReports.length - 1)
+          }
+        })
+        .catch(error => console.error('Error refreshing reports:', error))
+    } else if (activeTask.status === 'error') {
+      setActionStatus(`Error: ${activeTask.message}`)
+    }
+  }, [activeTask?.taskId, activeTask?.status])
+
   const currentReport = reports[selectedReportIndex] || reports[reports.length - 1] || null
   const videos = playlistSnapshot?.videos || []
   const filteredVideos = videos.filter((video) => {
@@ -119,7 +142,7 @@ function PlaylistPage({ playlistId, onBack }) {
   const runReport = async () => {
     try {
       setIsRunningReport(true)
-      setActionStatus('')
+      setActionStatus('Starting report generation...')
 
       const response = await fetch(`${API_BASE_URL}/api/playlists/${playlistId}/reports`, {
         method: 'POST',
@@ -131,11 +154,11 @@ function PlaylistPage({ playlistId, onBack }) {
         throw new Error(data.detail || `HTTP ${response.status}`)
       }
 
-      setActionStatus(data.message || 'Report generation started. Check back soon.')
+      onStartTask(data.task_id)
+      setActionStatus(data.message || 'Report generation started...')
     } catch (requestError) {
       console.error('Error starting report generation:', requestError)
       setActionStatus('Could not start report generation.')
-    } finally {
       setIsRunningReport(false)
     }
   }
@@ -166,6 +189,8 @@ function PlaylistPage({ playlistId, onBack }) {
             • {playlistPrivacy}
             {' '}
             • {currentReport?.report_date || playlistSnapshot?.report_date || 'no date available'}
+            {' '}
+            • {formatPlaylistDuration(playlistSnapshot?.playlist_duration)} duration
           </p>
           {playlistDescription && <p className="yt-detail__description">{playlistDescription}</p>}
 
@@ -180,8 +205,8 @@ function PlaylistPage({ playlistId, onBack }) {
                 Author channel
               </a>
             )}
-            <button className="yt-runReportButton" type="button" onClick={runReport} disabled={isRunningReport}>
-              {isRunningReport ? 'Running report...' : 'Run report'}
+            <button className="yt-runReportButton" type="button" onClick={runReport} disabled={!!activeTask}>
+              {activeTask ? 'Running report...' : 'Run report'}
             </button>
           </div>
 
@@ -194,6 +219,7 @@ function PlaylistPage({ playlistId, onBack }) {
           <span>Time machine</span>
           <span>
             Report {reports.length > 0 ? selectedReportIndex + 1 : 0}/{reports.length || 0}
+            {currentReport?.report_id ? ` • ID ${currentReport.report_id}` : ''}
           </span>
         </div>
 

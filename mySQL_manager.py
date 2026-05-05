@@ -573,6 +573,7 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
             auth_plugin='mysql_native_password'
         )
         if conn.is_connected():
+            conn.autocommit = False
             cursor = conn.cursor()
 
             # Check if playlist already exists
@@ -611,7 +612,6 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                 INSERT INTO ytp_playlists (playlist_name, playlist_url, playlist_author, playlist_author_url)
                 VALUES (%s, %s, %s, %s)
                 ''', (playlist_name, playlist_url, playlist_author, playlist_author_url))
-                conn.commit()  # Commit after inserting the playlist
                 playlist_id = cursor.lastrowid
 
             # Add report
@@ -659,14 +659,12 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
                 video_thumbnail = video_thumbnails[index] if video_thumbnails and index < len(video_thumbnails) else None
                 update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id, video_thumbnail, downloaded_thumbnails_cache)
 
-                if batch_size and (index + 1) % batch_size == 0:
-                    conn.commit()
-                    print(f"[DB] Committed batch through video {index + 1}/{total_videos}")
-
             conn.commit()
             return True
     except Error as e:
         print(f"Error: {e}")
+        if conn and conn.is_connected():
+            conn.rollback()
         return False
     finally:
         if conn and conn.is_connected():
@@ -706,7 +704,24 @@ def get_all_playlists(cursor):
                 latest_thumbnail = None
                 latest_thumbnail_id = None
 
-            video_count = get_playlist_length_by_report_id(cursor, get_latest_report_id_for_playlist(cursor, p_id))
+            latest_report_id = get_latest_report_id_for_playlist(cursor, p_id)
+            video_count = get_playlist_length_by_report_id(cursor, latest_report_id)
+            
+            # Calculate playlist duration using SQL SUM instead of Python loop
+            playlist_duration = 0
+            if latest_report_id:
+                try:
+                    cursor.execute('''
+                        SELECT COALESCE(SUM(ytp_videos.video_duration), 0)
+                        FROM ytp_report_details
+                        JOIN ytp_videos ON ytp_report_details.video_id = ytp_videos.video_id
+                        WHERE ytp_report_details.report_id = %s
+                    ''', (latest_report_id,))
+                    result = cursor.fetchone()
+                    playlist_duration = int(result[0]) if result and result[0] else 0
+                except Exception as e:
+                    print(f"Error calculating duration for playlist {p_id}: {e}")
+                    playlist_duration = 0
 
             playlists.append({
                 'playlist_id': p_id,
@@ -718,7 +733,8 @@ def get_all_playlists(cursor):
                 'latest_thumbnail_id': latest_thumbnail_id,
                 'playlist_author': row[3],
                 'playlist_author_url': row[4],
-                'video_count': video_count
+                'video_count': video_count,
+                'playlist_duration': playlist_duration
             })
         return playlists    
     except Error as e:
@@ -735,9 +751,28 @@ def get_playlist_reports(cursor, playlist_id):
         ''', (playlist_id,))
         reports = []
         for report_id, report_date in cursor.fetchall():
+            # Calculate playlist duration using SQL SUM
+            playlist_duration = 0
+            try:
+                cursor.execute('''
+                    SELECT COALESCE(SUM(ytp_videos.video_duration), 0)
+                    FROM ytp_report_details
+                    JOIN ytp_videos ON ytp_report_details.video_id = ytp_videos.video_id
+                    WHERE ytp_report_details.report_id = %s
+                ''', (report_id,))
+                result = cursor.fetchone()
+                playlist_duration = int(result[0]) if result and result[0] else 0
+            except Exception as e:
+                print(f"Error calculating duration for report {report_id}: {e}")
+                playlist_duration = 0
+            
+            report_video_count = get_playlist_length_by_report_id(cursor, report_id)
+            
             reports.append({
                 'report_id': report_id,
-                'report_date': report_date.strftime('%Y-%m-%d %H:%M:%S') if hasattr(report_date, 'strftime') else str(report_date)
+                'report_date': report_date.strftime('%Y-%m-%d %H:%M:%S') if hasattr(report_date, 'strftime') else str(report_date),
+                'video_count': report_video_count,
+                'playlist_duration': playlist_duration
             })
         return reports
     except Error as e:
@@ -879,18 +914,89 @@ def get_playlist_content_by_report_id(cursor, report_id):
         playlist_thumbnail = get_thumbnail_file_name_by_thumbnail_id(cursor, playlist_thumbnail_id) if playlist_thumbnail_id else None
 
         cursor.execute('''
-            SELECT video_id
-            FROM ytp_report_details
-            WHERE report_id = %s
-            ORDER BY detail_id ASC
+            SELECT rd.video_id
+            FROM ytp_report_details rd
+            WHERE rd.report_id = %s
+            ORDER BY rd.detail_id ASC
         ''', (report_id,))
         video_ids = [row[0] for row in cursor.fetchall()]
 
         videos = []
-        for video_id in video_ids:
-            video_details = get_video_details_by_report_id(cursor, report_id, video_id)
-            if video_details:
-                videos.append(video_details)
+        total_duration = 0
+
+        # Calculate total duration using SQL SUM for the entire report
+        try:
+            cursor.execute('''
+                SELECT COALESCE(SUM(v.video_duration), 0)
+                FROM ytp_report_details rd
+                JOIN ytp_videos v ON rd.video_id = v.video_id
+                WHERE rd.report_id = %s
+            ''', (report_id,))
+            result = cursor.fetchone()
+            total_duration = int(result[0]) if result and result[0] else 0
+        except Exception as e:
+            print(f"Error calculating total duration for report {report_id}: {e}")
+            total_duration = 0
+
+        # Bulk load basic video rows (one query) and attempt to recover thumbnails for unavailable videos
+        if video_ids:
+            try:
+                # Correlated subquery to get latest thumbnail file name up to this report
+                cursor.execute('''
+                    SELECT v.video_id, v.video_title, v.video_url, v.video_duration, v.uploader, v.uploader_url, v.view_count, v.valid,
+                        (
+                            SELECT t.file_name
+                            FROM ytp_video_details d
+                            JOIN ytp_thumbnails t ON d.thumbnail_id = t.thumbnail_id
+                            WHERE d.video_id = v.video_id AND d.change_type = 'thumbnail' AND d.report_id <= %s
+                            ORDER BY d.report_id DESC, d.change_id DESC
+                            LIMIT 1
+                        ) AS thumbnail_file
+                    FROM ytp_videos v
+                    JOIN ytp_report_details rd ON rd.video_id = v.video_id
+                    WHERE rd.report_id = %s
+                    ORDER BY rd.detail_id ASC
+                ''', (report_id, report_id))
+
+                for row in cursor.fetchall():
+                    vid, base_title, video_url, duration, uploader, uploader_url, view_count, valid, thumbnail_file = row
+                    thumbnail_url = f"/static/thumbnail_cache/{thumbnail_file}" if thumbnail_file else None
+
+                    video_obj = {
+                        'video_id': vid,
+                        'title': base_title,
+                        'display_title': base_title,
+                        'url': video_url,
+                        'duration': duration,
+                        'uploader': uploader,
+                        'uploader_url': uploader_url,
+                        'view_count': normalize_view_count(view_count),
+                        'valid': normalize_boolean_flag(valid, default=1),
+                        'availability': 'available' if normalize_boolean_flag(valid, default=1) else 'unavailable',
+                        'thumbnail_url': thumbnail_url,
+                        'display_thumbnail_url': thumbnail_url,
+                        'recovered_from_history': False,
+                        'wayback_search_url': get_wayback_machine_search_url(video_url) if not normalize_boolean_flag(valid, default=1) else None,
+                    }
+
+                    # If the video is unavailable, try to recover title/thumbnail from last available report
+                    if video_obj['valid'] == 0:
+                        last_ok = get_last_available_video_report_id(cursor, vid, report_id)
+                        if last_ok is not None:
+                            recovered_title = get_latest_video_detail(cursor, vid, 'title', last_ok)
+                            recovered_thumbnail_id = get_latest_video_detail(cursor, vid, 'thumbnail', last_ok)
+                            if recovered_title:
+                                video_obj['display_title'] = recovered_title
+                                video_obj['recovered_from_history'] = True
+                            if recovered_thumbnail_id:
+                                thumb_file = get_thumbnail_file_name_by_thumbnail_id(cursor, recovered_thumbnail_id)
+                                if thumb_file:
+                                    video_obj['display_thumbnail_url'] = f"/static/thumbnail_cache/{thumb_file}"
+
+                    videos.append(video_obj)
+
+            except Exception as e:
+                print(f"Error bulk loading videos for report {report_id}: {e}")
 
         return {
             'report_id': report_id,
@@ -904,7 +1010,8 @@ def get_playlist_content_by_report_id(cursor, report_id):
             'playlist_thumbnail_url': f"/static/thumbnail_cache/{playlist_thumbnail}" if playlist_thumbnail else None,
             'playlist_author': playlist_author,
             'playlist_author_url': playlist_author_url,
-            'video_count': len(videos),
+            'video_count': len(video_ids),
+            'playlist_duration': total_duration,
             'videos': videos,
         }
     except Error as e:
