@@ -73,8 +73,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
+- Frontend: http://localhost:3002
+- Backend API: http://localhost:8001
 
 To run without the bundled MySQL, set `DB_HOST` in `.env` to your DB host and start only `backend` and `frontend`:
 
