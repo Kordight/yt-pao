@@ -709,12 +709,17 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 video_thumbnail = video_thumbnails[index] if video_thumbnails and index < len(video_thumbnails) else None
                 update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id, video_thumbnail, downloaded_thumbnails_cache)
 
-            repaired_thumbnails, skipped_thumbnails = repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thumbnails_cache)
-            if repaired_thumbnails or skipped_thumbnails:
-                print(f"[Validate] Report {report_id}: repaired {repaired_thumbnails}, skipped {skipped_thumbnails}")
-
             if progress_callback:
                 progress_callback(total_videos, total_videos, playlist_name, 'saving')
+
+            repaired_thumbnails, skipped_thumbnails = repair_missing_video_thumbnails_for_report(
+                cursor,
+                report_id,
+                downloaded_thumbnails_cache,
+                progress_callback=progress_callback,
+            )
+            if repaired_thumbnails or skipped_thumbnails:
+                print(f"[Validate] Report {report_id}: repaired {repaired_thumbnails}, skipped {skipped_thumbnails}")
 
             conn.commit()
             return True
@@ -946,7 +951,7 @@ def resolve_video_thumbnail_url(video_url):
 
     return None
 
-def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thumbnails_cache=None):
+def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thumbnails_cache=None, progress_callback=None):
     repaired = 0
     skipped = 0
 
@@ -966,10 +971,17 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
     if not report_videos:
         return repaired, skipped
 
+    total_videos = len(report_videos)
+    if progress_callback:
+        progress_callback(0, total_videos, None, 'thumbnail_repair')
+
     if downloaded_thumbnails_cache is None:
         downloaded_thumbnails_cache = {}
 
-    for video_id, video_url, video_valid, existing_thumbnail_id in report_videos:
+    for index, (video_id, video_url, video_valid, existing_thumbnail_id) in enumerate(report_videos, start=1):
+        if progress_callback:
+            progress_callback(index, total_videos, f'video_id={video_id}', 'thumbnail_repair')
+
         if normalize_boolean_flag(video_valid, default=1) == 0:
             skipped += 1
             continue

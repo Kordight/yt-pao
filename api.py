@@ -118,6 +118,9 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
                 if phase == 'saving':
                     progress = 95
                     message = 'Saving processed videos to the database...'
+                elif phase == 'thumbnail_repair':
+                    progress = 95 + ((processed_videos / total_videos) * 4)
+                    message = f'Repairing missing thumbnails {processed_videos}/{total_videos}...'
                 else:
                     progress = 40 + ((processed_videos / total_videos) * 50)
                     message = f'Processing video {processed_videos}/{total_videos}...'
@@ -128,7 +131,7 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
             update_processing_status(task_id, {
                 'status': phase,
                 'message': message if not current_video_title else f'{message} Current: {current_video_title}',
-                'progress': min(95, round(progress, 2)),
+                'progress': min(99, round(progress, 2)),
                 'processed_videos': processed_videos,
                 'total_videos': total_videos,
                 'remaining_videos': remaining_videos,

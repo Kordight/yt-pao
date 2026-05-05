@@ -135,6 +135,21 @@ function App() {
       throw new Error(data.detail || `HTTP ${response.status}`)
     }
 
+    if (data.task_id) {
+      setActiveTasks(prev => ({
+        ...prev,
+        [data.task_id]: {
+          taskId: data.task_id,
+          status: 'queued',
+          message: data.message || 'Queued for processing',
+          progress: 0,
+          created_at: new Date().toISOString(),
+          playlistId: null,
+        }
+      }))
+      startTaskPolling(data.task_id, null)
+    }
+
     setRegistrationStatus(data.message || 'Playlist registration started. Check back soon.')
   }
 
