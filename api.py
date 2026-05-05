@@ -25,7 +25,8 @@ host = db_config['host']
 user = db_config['user']
 password = db_config['password']
 database = db_config['database']
-create_database(host, user, password, database)
+port = int(db_config.get('port', 3306) or 3306)
+create_database(host, user, password, database, port)
 
 # Processing status tracking
 processing_status = {}
@@ -122,6 +123,7 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
             user,
             password,
             database,
+            port,
             video_titles,
             saved_video_links,
             playlist_data['playlist_name'],
@@ -171,7 +173,7 @@ app.mount("/static", StaticFiles(directory="static", check_dir=False), name="sta
 
 @app.get("/api/playlists")
 def read_playlists():
-    cursor, conn = create_cursor(host, user, password, database)
+    cursor, conn = create_cursor(host, user, password, database, port)
     try:
         if not cursor or not conn:
             raise HTTPException(status_code=500, detail="Unable to open database connection")
@@ -185,7 +187,7 @@ def read_playlists():
 
 @app.get("/api/playlists/{playlist_id}/reports")
 def read_playlist_reports(playlist_id: int):
-    cursor, conn = create_cursor(host, user, password, database)
+    cursor, conn = create_cursor(host, user, password, database, port)
     try:
         if not cursor or not conn:
             raise HTTPException(status_code=500, detail="Unable to open database connection")
@@ -230,7 +232,7 @@ def register_playlist(payload: PlaylistRegisterRequest, background_tasks: Backgr
 
 @app.post("/api/playlists/{playlist_id}/reports", status_code=202)
 def run_playlist_report(playlist_id: int, background_tasks: BackgroundTasks):
-    cursor, conn = create_cursor(host, user, password, database)
+    cursor, conn = create_cursor(host, user, password, database, port)
     try:
         if not cursor or not conn:
             raise HTTPException(status_code=500, detail="Unable to open database connection")
@@ -284,7 +286,7 @@ def check_processing_status(task_id: str):
 
 @app.get("/api/playlists/{playlist_id}/reports/{report_id}")
 def read_playlist_report(playlist_id: int, report_id: int):
-    cursor, conn = create_cursor(host, user, password, database)
+    cursor, conn = create_cursor(host, user, password, database, port)
     try:
         if not cursor or not conn:
             raise HTTPException(status_code=500, detail="Unable to open database connection")

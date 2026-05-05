@@ -247,7 +247,8 @@ def main():
     
     elif args.resultFormat == "mySQL":
             db_config = load_db_config()
-            create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'])
+            db_port = int(db_config.get('port', 3306) or 3306)
+            create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'], db_port)
             downloaded_thumbnails_cache = {}
             video_titles = [video.title for video in videos]
             saved_video_links = [video.url for video in videos]
@@ -257,7 +258,7 @@ def main():
             view_count = [video.view_count for video in videos]
             isvalid = [video.valid for video in videos]
             video_thumbnails = [video.thumbnail for video in videos]
-            saved = add_report(db_config['host'], db_config['user'], db_config['password'], db_config['database'],
+            saved = add_report(db_config['host'], db_config['user'], db_config['password'], db_config['database'], db_port,
                 video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails, downloaded_thumbnails_cache, playlist_author=playlist_author, playlist_author_url=playlist_author_url)
             if saved:
                 print("Report saved to MySQL database.")

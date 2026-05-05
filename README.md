@@ -79,6 +79,8 @@ docker compose up --build
 - Backend API: http://localhost:8001
 - The bundled MySQL container is not published on host port 3306 anymore, so it will not clash with a local MySQL install.
 
+If you build the frontend in Docker, use `VITE_API_BASE_URL_DOCKER=http://backend:8000` so the nginx-served app can reach the backend over the Compose network. Use `VITE_API_BASE_URL` only for local Vite development on the host.
+
 To run without the bundled MySQL, set `DB_HOST` in `.env` to your DB host and start only `backend` and `frontend`:
 
 ```bash

@@ -41,15 +41,16 @@ def get_cached_thumbnail_id(cursor, thumbnail_url):
     result = cursor.fetchone()
     return result[0] if result else None
 
-def create_database(host, user, password, database):
+def create_database(host, user, password, database, port=3306):
     conn = None  # Initialize conn to None
     try:
+        db_port = int(port or 3306)
         conn = mysql.connector.connect(
             host=host,
             user=user,
             password=password,
             database=database,
-            port=3306,
+            port=db_port,
             auth_plugin='mysql_native_password')
         if conn.is_connected():
             cursor = conn.cursor()
@@ -561,15 +562,16 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
     else:
         print(f"[ERROR] Video ID {video_id} ('{video_title}') has NO thumbnail provided by yt-dlp!")
     
-def add_report(host, user, password, database, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails=None, downloaded_thumbnails_cache=None, batch_size=50, playlist_author=None, playlist_author_url=None):
+def add_report(host, user, password, database, port, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails=None, downloaded_thumbnails_cache=None, batch_size=50, playlist_author=None, playlist_author_url=None):
     conn = None  # Initialize conn to None
     try:
+        db_port = int(port or 3306)
         conn = mysql.connector.connect(
             host=host,
             user=user,
             password=password,
             database=database,
-            port=3306,
+            port=db_port,
             auth_plugin='mysql_native_password'
         )
         if conn.is_connected():
@@ -671,14 +673,15 @@ def add_report(host, user, password, database, video_titles, saved_video_links, 
             cursor.close()
             conn.close()
 
-def create_cursor(host, user, password, database):
+def create_cursor(host, user, password, database, port=3306):
     try:
+        db_port = int(port or 3306)
         conn = mysql.connector.connect(
             host=host,
             user=user,
             password=password,
             database=database,
-            port=3306,
+            port=db_port,
             auth_plugin='mysql_native_password')
         if conn.is_connected():
             return conn.cursor(), conn
