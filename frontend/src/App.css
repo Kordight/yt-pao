@@ -146,7 +146,7 @@ input {
   right: 20px;
   width: 350px;
   max-width: calc(100% - 40px);
-  background: linear-gradient(135deg, rgb(47 30 30), rgb(85, 42, 42))
+  background: linear-gradient(135deg, rgb(47 30 30), rgb(85, 42, 42));
   border: 1px solid rgba(255, 0, 0, 0.2);
   border-radius: 12px;
   overflow: hidden;
