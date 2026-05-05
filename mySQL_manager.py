@@ -14,6 +14,19 @@ def normalize_text(value, default=''):
         return default
     return str(value)
 
+def normalize_boolean_flag(value, default=1):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return 1 if value else 0
+
+    text_value = str(value).strip().lower()
+    if text_value in ('0', 'false', 'no', 'off', 'unavailable', 'private', 'deleted'):
+        return 0
+    return 1
+
 def get_cached_thumbnail_id(cursor, thumbnail_url):
     if not thumbnail_url:
         return None
@@ -712,6 +725,25 @@ def get_all_playlists(cursor):
         print(f"Error: {e}")
         return []
 
+def get_playlist_reports(cursor, playlist_id):
+    try:
+        cursor.execute('''
+            SELECT report_id, report_date
+            FROM ytp_reports
+            WHERE playlist_id = %s
+            ORDER BY report_id ASC
+        ''', (playlist_id,))
+        reports = []
+        for report_id, report_date in cursor.fetchall():
+            reports.append({
+                'report_id': report_id,
+                'report_date': report_date.strftime('%Y-%m-%d %H:%M:%S') if hasattr(report_date, 'strftime') else str(report_date)
+            })
+        return reports
+    except Error as e:
+        print(f"Error: {e}")
+        return []
+
 def get_latest_playlist_thumbnail_by_id(cursor, playlist_id):
     # to be implemented if needed in the future
     pass
@@ -732,14 +764,24 @@ def get_latest_report_id_for_playlist(cursor, playlist_id):
     return result[0] if result else None
 
 def get_latest_playlist_detail(cursor, playlist_id, change_type):
+    return get_latest_playlist_detail_by_report(cursor, playlist_id, change_type, None)
+
+def get_latest_playlist_detail_by_report(cursor, playlist_id, change_type, report_id=None):
+    report_filter = ''
+    params = [playlist_id, change_type]
+    if report_id is not None:
+        report_filter = ' AND r.report_id <= %s'
+        params.append(report_id)
+
     cursor.execute('''
         SELECT d.change_value, d.thumbnail_id
         FROM ytp_reports r
         JOIN ytp_playlist_details d ON r.report_id = d.report_id
         WHERE r.playlist_id = %s AND d.change_type = %s
-        ORDER BY r.report_id DESC
+        ''' + report_filter + '''
+        ORDER BY r.report_id DESC, d.change_id DESC
         LIMIT 1
-    ''', (playlist_id, change_type))
+    ''', tuple(params))
     result = cursor.fetchone()
     if result:
         # result[0] to change_value, result[1] to thumbnail_id
@@ -748,6 +790,45 @@ def get_latest_playlist_detail(cursor, playlist_id, change_type):
         else:
             return result[0] # Zwracamy tekst (tytuł lub opis)
     return None
+
+def get_latest_video_detail(cursor, video_id, change_type, report_id=None):
+    report_filter = ''
+    params = [video_id, change_type]
+    if report_id is not None:
+        report_filter = ' AND d.report_id <= %s'
+        params.append(report_id)
+
+    cursor.execute('''
+        SELECT d.change_value, d.thumbnail_id
+        FROM ytp_video_details d
+        WHERE d.video_id = %s AND d.change_type = %s
+        ''' + report_filter + '''
+        ORDER BY d.report_id DESC, d.change_id DESC
+        LIMIT 1
+    ''', tuple(params))
+    result = cursor.fetchone()
+    if result:
+        if change_type == 'thumbnail':
+            return result[1]
+        return result[0]
+    return None
+
+def get_last_available_video_report_id(cursor, video_id, report_id):
+    cursor.execute('''
+        SELECT d.report_id, d.change_value
+        FROM ytp_video_details d
+        WHERE d.video_id = %s AND d.change_type = 'availability' AND d.report_id <= %s
+        ORDER BY d.report_id DESC, d.change_id DESC
+    ''', (video_id, report_id))
+    for candidate_report_id, availability_value in cursor.fetchall():
+        if normalize_boolean_flag(availability_value, default=1) == 1:
+            return candidate_report_id
+    return None
+
+def get_wayback_machine_search_url(video_url):
+    if not video_url:
+        return None
+    return f'https://web.archive.org/web/*/{video_url}'
 
 def get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id):
     cursor.execute('''
@@ -766,13 +847,149 @@ def get_playlist_length_by_report_id(cursor, report_id):
     return result[0] if result else 0
 
 def get_playlist_content_by_report_id(cursor, report_id):
-    # to be implemented if needed in the future
-    pass
+    try:
+        cursor.execute('''
+            SELECT playlist_id, report_date
+            FROM ytp_reports
+            WHERE report_id = %s
+            LIMIT 1
+        ''', (report_id,))
+        report_row = cursor.fetchone()
+        if not report_row:
+            return None
+
+        playlist_id, report_date = report_row
+
+        cursor.execute('''
+            SELECT playlist_name, playlist_url, playlist_author, playlist_author_url
+            FROM ytp_playlists
+            WHERE playlist_id = %s
+            LIMIT 1
+        ''', (playlist_id,))
+        playlist_row = cursor.fetchone()
+        if not playlist_row:
+            return None
+
+        playlist_name, playlist_url, playlist_author, playlist_author_url = playlist_row
+
+        playlist_title = get_latest_playlist_detail_by_report(cursor, playlist_id, 'title', report_id) or playlist_name
+        playlist_description = get_latest_playlist_detail_by_report(cursor, playlist_id, 'description', report_id) or ''
+        playlist_privacy = get_latest_playlist_detail_by_report(cursor, playlist_id, 'privacy', report_id) or 'unknown'
+        playlist_thumbnail_id = get_latest_playlist_detail_by_report(cursor, playlist_id, 'thumbnail', report_id)
+        playlist_thumbnail = get_thumbnail_file_name_by_thumbnail_id(cursor, playlist_thumbnail_id) if playlist_thumbnail_id else None
+
+        cursor.execute('''
+            SELECT video_id
+            FROM ytp_report_details
+            WHERE report_id = %s
+            ORDER BY detail_id ASC
+        ''', (report_id,))
+        video_ids = [row[0] for row in cursor.fetchall()]
+
+        videos = []
+        for video_id in video_ids:
+            video_details = get_video_details_by_report_id(cursor, report_id, video_id)
+            if video_details:
+                videos.append(video_details)
+
+        return {
+            'report_id': report_id,
+            'report_date': report_date.strftime('%Y-%m-%d %H:%M:%S') if hasattr(report_date, 'strftime') else str(report_date),
+            'playlist_id': playlist_id,
+            'playlist_name': playlist_name,
+            'playlist_title': playlist_title,
+            'playlist_url': playlist_url,
+            'playlist_description': playlist_description,
+            'playlist_privacy': playlist_privacy,
+            'playlist_thumbnail_url': f"/static/thumbnail_cache/{playlist_thumbnail}" if playlist_thumbnail else None,
+            'playlist_author': playlist_author,
+            'playlist_author_url': playlist_author_url,
+            'video_count': len(videos),
+            'videos': videos,
+        }
+    except Error as e:
+        print(f"Error: {e}")
+        return None
 
 def get_video_details_by_report_id(cursor, report_id, video_id):
-    # to be implemented if needed in the future
-    pass
+    try:
+        cursor.execute('''
+            SELECT video_title, video_url, video_duration, uploader, uploader_url, view_count, valid
+            FROM ytp_videos
+            WHERE video_id = %s
+            LIMIT 1
+        ''', (video_id,))
+        video_row = cursor.fetchone()
+        if not video_row:
+            return None
+
+        base_title, video_url, duration, uploader, uploader_url, view_count, valid = video_row
+        title = get_latest_video_detail(cursor, video_id, 'title', report_id) or base_title
+        views_value = get_latest_video_detail(cursor, video_id, 'views', report_id)
+        availability_value = get_latest_video_detail(cursor, video_id, 'availability', report_id)
+        thumbnail_id = get_latest_video_detail(cursor, video_id, 'thumbnail', report_id)
+        thumbnail_file = get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id) if thumbnail_id else None
+
+        if views_value is None:
+            views_value = view_count
+
+        availability_normalized = normalize_boolean_flag(availability_value, default=valid)
+        recovered_from_history = False
+        wayback_search_url = None
+
+        if availability_normalized == 0:
+            recovered_title = None
+            last_available_report_id = get_last_available_video_report_id(cursor, video_id, report_id)
+            if last_available_report_id is not None:
+                recovered_title = get_latest_video_detail(cursor, video_id, 'title', last_available_report_id)
+                recovered_thumbnail_id = get_latest_video_detail(cursor, video_id, 'thumbnail', last_available_report_id)
+                if recovered_title:
+                    title = recovered_title
+                if recovered_thumbnail_id:
+                    thumbnail_file = get_thumbnail_file_name_by_thumbnail_id(cursor, recovered_thumbnail_id)
+                recovered_from_history = True
+            if not recovered_title:
+                wayback_search_url = get_wayback_machine_search_url(video_url)
+
+        return {
+            'video_id': video_id,
+            'title': title,
+            'display_title': title,
+            'url': video_url,
+            'duration': duration,
+            'uploader': uploader,
+            'uploader_url': uploader_url,
+            'view_count': normalize_view_count(views_value),
+            'valid': availability_normalized,
+            'availability': 'available' if availability_normalized else 'unavailable',
+            'thumbnail_url': f"/static/thumbnail_cache/{thumbnail_file}" if thumbnail_file else None,
+            'display_thumbnail_url': f"/static/thumbnail_cache/{thumbnail_file}" if thumbnail_file else None,
+            'recovered_from_history': recovered_from_history,
+            'wayback_search_url': wayback_search_url,
+        }
+    except Error as e:
+        print(f"Error: {e}")
+        return None
 
 def get_video_history_by_video_id(cursor, video_id):
-    # to be implemented if needed in the future
-    pass
+    try:
+        cursor.execute('''
+            SELECT d.report_id, r.report_date, d.change_type, d.change_value, d.thumbnail_id
+            FROM ytp_video_details d
+            JOIN ytp_reports r ON r.report_id = d.report_id
+            WHERE d.video_id = %s
+            ORDER BY d.report_id ASC, d.change_id ASC
+        ''', (video_id,))
+        history = []
+        for report_id, report_date, change_type, change_value, thumbnail_id in cursor.fetchall():
+            history.append({
+                'report_id': report_id,
+                'report_date': report_date.strftime('%Y-%m-%d %H:%M:%S') if hasattr(report_date, 'strftime') else str(report_date),
+                'change_type': change_type,
+                'change_value': change_value,
+                'thumbnail_id': thumbnail_id,
+            })
+        return history
+    except Error as e:
+        print(f"Error: {e}")
+        return []

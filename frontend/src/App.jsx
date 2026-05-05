@@ -1,24 +1,34 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
+import HomePage from './pages/HomePage'
+import PlaylistPage from './pages/PlaylistPage'
+import { API_BASE_URL } from './utils/formatters'
 
-const API_BASE_URL = 'http://127.0.0.1:8000'
-const DEFAULT_THUMBNAIL = '/playlist-placeholder.svg'
+function getCurrentPath() {
+  return window.location.pathname
+}
+
+function getPlaylistIdFromPath(pathname) {
+  const match = pathname.match(/^\/playlist\/(\d+)$/)
+  return match ? Number(match[1]) : null
+}
 
 function App() {
   const [playlists, setPlaylists] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(true)
+  const [playlistsError, setPlaylistsError] = useState('')
+  const [registrationStatus, setRegistrationStatus] = useState('')
+  const [currentPath, setCurrentPath] = useState(getCurrentPath())
 
   useEffect(() => {
     const controller = new AbortController()
 
-    async function fetchData() {
+    async function fetchPlaylists() {
       try {
-        setIsLoading(true)
-        setError('')
+        setIsLoadingPlaylists(true)
+        setPlaylistsError('')
 
         const response = await fetch(`${API_BASE_URL}/api/playlists`, { signal: controller.signal })
-
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
         }
@@ -27,85 +37,76 @@ function App() {
         setPlaylists(Array.isArray(data.playlists) ? data.playlists : [])
       } catch (requestError) {
         if (requestError.name !== 'AbortError') {
-          console.error('Błąd pobierania danych:', requestError)
-          setError('Nie udało się pobrać playlist z API.')
+          console.error('Error fetching playlists:', requestError)
+          setPlaylistsError('Failed to load playlists from the API.')
         }
       } finally {
-        setIsLoading(false)
+        setIsLoadingPlaylists(false)
       }
     }
 
-    fetchData()
+    fetchPlaylists()
 
-    return () => controller.abort()
+    const handlePopState = () => setCurrentPath(getCurrentPath())
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      controller.abort()
+      window.removeEventListener('popstate', handlePopState)
+    }
   }, [])
 
-  const playlistCards = useMemo(() => playlists, [playlists])
+  const navigate = (path) => {
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path)
+    }
+    setCurrentPath(getCurrentPath())
+  }
 
-  return (
+  const handleOpenPlaylist = (playlistId) => {
+    navigate(`/playlist/${playlistId}`)
+  }
+
+  const handleBack = () => {
+    navigate('/')
+  }
+
+  const handleRegisterPlaylist = async (playlistUrl) => {
+    setRegistrationStatus('Starting playlist registration. Check back soon.')
+
+    const response = await fetch(`${API_BASE_URL}/api/playlists/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ playlist_url: playlistUrl }),
+    })
+
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(data.detail || `HTTP ${response.status}`)
+    }
+
+    setRegistrationStatus(data.message || 'Playlist registration started. Check back soon.')
+  }
+
+  const playlistId = getPlaylistIdFromPath(currentPath)
+
+  return playlistId ? (
     <main className="yt-page">
-      <header className="yt-page__header">
-        <div>
-          <p className="yt-page__eyebrow">YT-PAO</p>
-          <h1 className="yt-page__title">Playlists</h1>
-        </div>
-      </header>
-
-      {isLoading && <p className="yt-state">Ładowanie playlist...</p>}
-      {!isLoading && error && <p className="yt-state yt-state--error">{error}</p>}
-
-      {!isLoading && !error && (
-        <section className="yt-grid" aria-label="Lista playlist">
-          {playlistCards.length === 0 ? (
-            <p className="yt-state">No playlists available.</p>
-          ) : (
-            playlistCards.map((playlist) => {
-              const thumbnailSrc = playlist.latest_thumbnail_url
-                ? `${API_BASE_URL}${playlist.latest_thumbnail_url}`
-                : DEFAULT_THUMBNAIL
-              const title = playlist.latest_title || playlist.playlist_name || 'Bez tytułu'
-              const author = playlist.playlist_author || 'Nieznany autor'
-              const authorUrl = playlist.playlist_author_url || playlist.playlist_url || '#'
-              const videoCount = playlist.video_count ?? 0
-
-              return (
-                <article className="yt-card" key={playlist.playlist_id}>
-                  <a
-                    className="yt-card__thumbLink"
-                    href={playlist.playlist_url || authorUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Otwórz playlistę ${title}`}
-                  >
-                    <div className="yt-card__thumbWrap">
-                      <img className="yt-card__thumb" src={thumbnailSrc} alt={title} />
-                      <span className="yt-card__badge">{videoCount} videos</span>
-                    </div>
-                  </a>
-
-                  <div className="yt-card__body">
-                    <div className="yt-card__content">
-                      <h2 className="yt-card__title">{title}</h2>
-                      <p className="yt-card__meta">
-                        <a href={authorUrl} target="_blank" rel="noreferrer">
-                          {author}
-                        </a>
-                      </p>
-                      {playlist.latest_description && (
-                        <p className="yt-card__description">{playlist.latest_description}</p>
-                      )}
-                    </div>
-
-                    <button className="yt-card__menu" type="button" aria-label="Options">
-                      ⋮
-                    </button>
-                  </div>
-                </article>
-              )
-            })
-          )}
-        </section>
-      )}
+      <PlaylistPage playlistId={playlistId} onBack={handleBack} />
+    </main>
+  ) : (
+    <main className="yt-page">
+      <HomePage
+        playlists={playlists}
+        isLoading={isLoadingPlaylists}
+        error={playlistsError}
+        onOpenPlaylist={handleOpenPlaylist}
+        onRegisterPlaylist={handleRegisterPlaylist}
+        registrationStatus={registrationStatus}
+      />
     </main>
   )
 }
