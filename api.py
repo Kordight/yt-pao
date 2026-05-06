@@ -26,7 +26,18 @@ user = db_config['user']
 password = db_config['password']
 database = db_config['database']
 port = int(db_config.get('port', 3306) or 3306)
-create_database(host, user, password, database, port)
+
+MAX_DB_RETRIES = 30
+DB_RETRY_INTERVAL = 2  # seconds
+for _attempt in range(1, MAX_DB_RETRIES + 1):
+    try:
+        create_database(host, user, password, database, port)
+        break
+    except Exception as _e:
+        if _attempt == MAX_DB_RETRIES:
+            raise
+        print(f"[startup] DB not ready (attempt {_attempt}/{MAX_DB_RETRIES}): {_e}. Retrying in {DB_RETRY_INTERVAL}s...")
+        time.sleep(DB_RETRY_INTERVAL)
 
 # Processing status tracking
 processing_status = {}

@@ -274,6 +274,7 @@ def create_database(host, user, password, database, port=3306):
             
     except Error as e:
         print(f"Error: {e}")
+        raise
     finally:
         if conn and conn.is_connected():
             cursor.close()
