@@ -54,6 +54,13 @@ def get_playlist_content(playlist_link, ydl_opts):
         entry['duration'] if isinstance(entry.get('duration'), (int, float)) else 0
         for entry in video_entries
     )    
+
+    # Fallback: if playlist-level thumbnail is missing, try first video's thumbnail
+    if not best_playlist_thumb_url and videos:
+        first_video_thumb = videos[0].thumbnail
+        if first_video_thumb:
+            best_playlist_thumb_url = first_video_thumb
+
     playlist_data = {
     'playlist_name': playlist_dict.get('title', 'Unknown Playlist'),
     'video_entries': len(video_entries),
