@@ -59,7 +59,7 @@ def get_playlist_content(playlist_link, ydl_opts):
     'video_entries': len(video_entries),
     'description': playlist_dict.get('description', 'No description available'),
     'playlist_id': playlist_dict.get('id', 'Unknown ID'),
-    'uploader': playlist_dict.get('uploader', 'Unknown uploader').removeprefix('by ').strip(),    'uploader_url': playlist_dict.get('uploader_url', 'Unknown URL'),
+    'uploader': (playlist_dict.get('uploader') or 'Unknown uploader').removeprefix('by ').strip(),    'uploader_url': playlist_dict.get('uploader_url', 'Unknown URL'),
     'url': playlist_dict.get('webpage_url', playlist_link),  
     'playlist_duration': playlist_duration,
     'playlist_privacy': playlist_dict.get('availability', 'public'),
