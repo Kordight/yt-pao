@@ -634,7 +634,8 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 playlist_id = result[0]
 
                 total_videos = len(video_titles)
-                if total_videos == 100:
+                
+                if total_videos <= 110:
                     cursor.execute('''
                         SELECT report_id 
                         FROM ytp_reports 
@@ -646,7 +647,6 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                     
                     if last_report_result:
                         last_report_id = last_report_result[0]
-                        # Download count of videos in last report to detect pagination errors where yt-dlp returns exactly 100 videos but there are actually more
                         cursor.execute('''
                             SELECT COUNT(*) 
                             FROM ytp_report_details 
@@ -656,11 +656,13 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                         
                         last_count = last_count_result[0] if last_count_result else 0
                         
-                        if last_count > 110:
-                            print(f"[Warning] Detected anomaly for playlist (ID: {playlist_id}). "
-                                  f"Current video count is exactly 100, but previously there were {last_count} videos. "
-                                  "Likely a pagination error. Skipping report generation.")
-                            return False 
+                        # If the difference is significant (greater than 20)
+                        # This indicates that yt-dlp "cut" the list after the first page.
+                        if last_count > 110 and (last_count - total_videos) >= 20:
+                            print(f"[Warning] Detected anomaly! Playlist (ID: {playlist_id}). "
+                                  f"Downloaded {total_videos} videos, but previously there were {last_count}. "
+                                  "Possible API pagination error. Skipping reporting.")
+                            return False
 
                 # Fill ytp_playlists columns if null in database but available from yt-dlp
                 cursor.execute('''
