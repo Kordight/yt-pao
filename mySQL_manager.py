@@ -632,6 +632,36 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
 
             if result:
                 playlist_id = result[0]
+
+                total_videos = len(video_titles)
+                if total_videos == 100:
+                    cursor.execute('''
+                        SELECT report_id 
+                        FROM ytp_reports 
+                        WHERE playlist_id = %s 
+                        ORDER BY report_id DESC 
+                        LIMIT 1
+                    ''', (playlist_id,))
+                    last_report_result = cursor.fetchone()
+                    
+                    if last_report_result:
+                        last_report_id = last_report_result[0]
+                        # Download count of videos in last report to detect pagination errors where yt-dlp returns exactly 100 videos but there are actually more
+                        cursor.execute('''
+                            SELECT COUNT(*) 
+                            FROM ytp_report_details 
+                            WHERE report_id = %s
+                        ''', (last_report_id,))
+                        last_count_result = cursor.fetchone()
+                        
+                        last_count = last_count_result[0] if last_count_result else 0
+                        
+                        if last_count > 110:
+                            print(f"[Warning] Detected anomaly for playlist (ID: {playlist_id}). "
+                                  f"Current video count is exactly 100, but previously there were {last_count} videos. "
+                                  "Likely a pagination error. Skipping report generation.")
+                            return False 
+
                 # Fill ytp_playlists columns if null in database but available from yt-dlp
                 cursor.execute('''
                     SELECT playlist_name, playlist_author, playlist_author_url
