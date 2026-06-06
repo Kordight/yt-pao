@@ -41,10 +41,37 @@ def download_image(url, retry_count=0, max_retries=3):
         time.sleep(cooldown)
     
     try:
-        headers = {'User-Agent': random.choice(USER_AGENTS)}
-        response = requests.get(url, timeout=15, headers=headers)
+        headers = {
+            'User-Agent': random.choice(USER_AGENTS),
+            'Referer': 'https://www.youtube.com/',
+            'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+        }
+        response = requests.get(url, timeout=15, headers=headers, allow_redirects=True)
         response.raise_for_status()
         return response.content
+    except requests.exceptions.HTTPError as e:
+        status = None
+        try:
+            status = e.response.status_code
+        except Exception:
+            pass
+        if status == 404:
+            # Some YouTube image endpoints require query params or a proper Referer.
+            print(f"404 error for image URL (may need parameters). Retrying with backoff: {url}")
+            if retry_count < max_retries:
+                time.sleep(2 ** retry_count)
+                return download_image(url, retry_count + 1, max_retries)
+            print(f"Max retries for 404 reached: {url}")
+            return None
+        else:
+            print(f"HTTP error downloading image: {e}")
+            if retry_count < max_retries:
+                time.sleep(2 ** retry_count)
+                return download_image(url, retry_count + 1, max_retries)
+            return None
     except requests.exceptions.Timeout:
         print(f"Timeout downloading image, retrying... (attempt {retry_count + 1}/{max_retries})")
         time.sleep(2 ** retry_count)  # Exponential backoff
