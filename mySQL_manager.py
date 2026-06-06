@@ -274,6 +274,7 @@ def create_database(host, user, password, database, port=3306):
             
     except Error as e:
         print(f"Error: {e}")
+        raise
     finally:
         if conn and conn.is_connected():
             cursor.close()
@@ -446,6 +447,17 @@ def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist
                 ''', (report_id, playlist_thumbnail, thumbnail_id))
         else:
             print("Warning: Failed to download or process playlist thumbnail")
+    else:
+        # No thumbnail provided - ensure we still store a record so we know it was checked
+        cursor.execute('''
+            SELECT COUNT(*) FROM ytp_playlist_details 
+            WHERE report_id = %s AND change_type = 'thumbnail'
+        ''', (report_id,))
+        if not cursor.fetchone()[0]:
+            cursor.execute('''
+                INSERT INTO ytp_playlist_details (report_id, change_type, change_value)
+                VALUES (%s, 'thumbnail', NULL)
+            ''', (report_id,))
 
 def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, availability, report_id, video_thumbnail, downloaded_thumbnails_cache=None):
     # Check if the video title has changed
@@ -791,7 +803,21 @@ def get_all_playlists(cursor):
             latest_description = get_latest_playlist_detail(cursor, p_id, 'description')
             try:
                 latest_thumbnail_id = get_latest_playlist_detail(cursor, p_id, 'thumbnail')
-                latest_thumbnail = get_thumbnail_file_name_by_thumbnail_id(cursor, latest_thumbnail_id)
+                latest_thumbnail = get_thumbnail_file_name_by_thumbnail_id(cursor, latest_thumbnail_id) if latest_thumbnail_id else None
+                
+                # If no processed thumbnail file found, try to get the raw URL from change_value
+                if not latest_thumbnail:
+                    cursor.execute('''
+                        SELECT d.change_value
+                        FROM ytp_reports r
+                        JOIN ytp_playlist_details d ON r.report_id = d.report_id
+                        WHERE r.playlist_id = %s AND d.change_type = 'thumbnail'
+                        ORDER BY r.report_id DESC
+                        LIMIT 1
+                    ''', (p_id,))
+                    url_result = cursor.fetchone()
+                    if url_result and url_result[0]:
+                        latest_thumbnail = url_result[0]
             except Exception as e:
                 print(f"Error fetching thumbnail for playlist ID {p_id}: {e}")
                 latest_thumbnail = None
