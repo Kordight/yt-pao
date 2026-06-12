@@ -621,7 +621,7 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
         print(f"[ERROR] Video ID {video_id} ('{video_title}') has NO thumbnail provided by yt-dlp!")
     
 def add_report(host, user, password, database, port, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails=None, downloaded_thumbnails_cache=None, batch_size=50, playlist_author=None, playlist_author_url=None, progress_callback=None):
-    conn = None  # Initialize conn to None
+    conn = None
     try:
         db_port = int(port or 3306)
         conn = mysql.connector.connect(
@@ -643,10 +643,10 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
             result = cursor.fetchone()
 
             if result:
+                playlist_id = result[0]
                 total_videos = len(video_titles)
-                                
                 valid_videos_count = sum(1 for v in isvalidl if normalize_boolean_flag(v, default=1) == 1)
-                                
+
                 if (95 <= total_videos <= 110) or (95 <= valid_videos_count <= 110):
                     cursor.execute('''
                         SELECT MAX(cnt) FROM (
@@ -713,8 +713,6 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
             report_id = cursor.lastrowid
             update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description, playlist_privacy, playlist_thumbnail, downloaded_thumbnails_cache)
 
-            total_videos = len(video_titles)
-
             # Add videos and report details
             for index, (title, link, length, uploader_row, uploader_url_row, view_count_row, isvalid_row) in enumerate(zip(video_titles, saved_video_links, video_durations, uploader, uploader_url, view_count, isvalidl)):
                 print(f"[Video {index + 1}/{total_videos}] Processing {title}")
@@ -731,7 +729,6 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
 
                 if video_result:
                     video_id = video_result[0]
-                    # print(f"[Video {index + 1}/{total_videos}] Duplicate video in playlist (or already in DB), reusing ID: {video_id}")
                 else:
                     # Add video
                     cursor.execute('''
@@ -746,6 +743,7 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 INSERT INTO ytp_report_details (report_id, video_id)
                 VALUES (%s, %s)
                 ''', (report_id, video_id))
+                
                 # Update video metadata if it has changed
                 video_thumbnail = video_thumbnails[index] if video_thumbnails and index < len(video_thumbnails) else None
                 update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id, video_thumbnail, downloaded_thumbnails_cache)

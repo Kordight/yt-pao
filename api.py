@@ -187,14 +187,14 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
             if report_saved:
                 update_processing_status(task_id, {
                     'status': 'completed',
-                    'message': 'Raport wygenerowany i zapisany pomyślnie.',
+                    'message': 'Report generated successfully',
                     'progress': 100,
                     'completed_at': datetime.now().isoformat()
                 })
             else:
                 update_processing_status(task_id, {
                     'status': 'error',
-                    'message': 'Odrzucono: Wykryto anomalię ucięcia listy (Błąd paginacji YouTube). Baza zabezpieczona.',
+                    'message': 'Odrzucono: Wykryto błąd paginacji API YouTube. Baza zabezpieczona.',
                     'progress': 100,
                     'completed_at': datetime.now().isoformat()
                 })
