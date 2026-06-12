@@ -194,7 +194,7 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
             else:
                 update_processing_status(task_id, {
                     'status': 'error',
-                    'message': 'Odrzucono: Wykryto błąd paginacji API YouTube. Baza zabezpieczona.',
+                    'message': 'Rejected: Detected total anomaly! Report was not saved.',
                     'progress': 100,
                     'completed_at': datetime.now().isoformat()
                 })
