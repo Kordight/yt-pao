@@ -37,9 +37,12 @@ def get_playlist_content(playlist_link, ydl_opts):
         video_title = entry.get('title') or 'Unknown Title'
         video_url = entry.get('url') or 'Unknown URL'
         video_duration = entry.get('duration') or 0  
-        video_uploader = entry.get('uploader') or 'Unknown'
-        video_uploader_url = entry.get('uploader_url') or 'Unknown'
-        video_view_count = entry.get('view_count') or 0  
+        
+        # ZMIANA: YT czasami używa klucza 'channel' zamiast 'uploader'
+        video_uploader = entry.get('uploader') or entry.get('channel') or 'Unknown'
+        video_uploader_url = entry.get('uploader_url') or entry.get('channel_url') or 'Unknown'
+        
+        video_view_count = entry.get('view_count') or 0 
         
         # Szybkie wykrywanie usuniętych/prywatnych filmów na podstawie jednego pobrania
         is_valid = 1
@@ -92,7 +95,8 @@ def parse_playlist(url, listMode):
         'dump_single_json': True,
         'skip_download': True,
         'cachedir': False,
-        'ignoreerrors': True
+        'ignoreerrors': True,
+        'cookiefile': 'cookies.txt'
     }
 
     # Pobieramy wszystko tylko jednym żądaniem API
