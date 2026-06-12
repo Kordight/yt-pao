@@ -643,11 +643,11 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
             result = cursor.fetchone()
 
             if result:
-                playlist_id = result[0]
-
                 total_videos = len(video_titles)
-                
-                if total_videos <= 110:
+                                
+                valid_videos_count = sum(1 for v in isvalidl if normalize_boolean_flag(v, default=1) == 1)
+                                
+                if (95 <= total_videos <= 110) or (95 <= valid_videos_count <= 110):
                     cursor.execute('''
                         SELECT report_id 
                         FROM ytp_reports 
@@ -656,7 +656,7 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                         LIMIT 1
                     ''', (playlist_id,))
                     last_report_result = cursor.fetchone()
-                    
+                                    
                     if last_report_result:
                         last_report_id = last_report_result[0]
                         cursor.execute('''
@@ -665,15 +665,20 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                             WHERE report_id = %s
                         ''', (last_report_id,))
                         last_count_result = cursor.fetchone()
-                        
+                                        
                         last_count = last_count_result[0] if last_count_result else 0
-                        
-                        # If the difference is significant (greater than 20)
-                        # This indicates that yt-dlp "cut" the list after the first page.
-                        if last_count > 110 and (last_count - total_videos) >= 20:
-                            print(f"[Warning] Detected anomaly! Playlist (ID: {playlist_id}). "
-                                  f"Downloaded {total_videos} videos, but previously there were {last_count}. "
-                                  "Possible API pagination error. Skipping reporting.")
+                                        
+                        if last_count > 120:
+                            if (95 <= total_videos <= 110) and (last_count - total_videos) >= 20:
+                                print(f"[Warning] Detected total anomaly! Playlist (ID: {playlist_id}). "
+                                    f"Downloaded {total_videos} videos, but previously there were {last_count}. "
+                                    "Possible API pagination error. Skipping reporting.")
+                                return False
+                                                
+                        if (95 <= valid_videos_count <= 110) and (last_count - valid_videos_count) >= 20:
+                            print(f"[Warning] Detected availability anomaly! Playlist (ID: {playlist_id}). "
+                            f"Downloaded {total_videos} videos, but only {valid_videos_count} are valid. "
+                            f"Previously there were {last_count}. Possible API pagination error on filtered list. Skipping reporting.")
                             return False
 
                 # Fill ytp_playlists columns if null in database but available from yt-dlp

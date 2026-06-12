@@ -158,7 +158,7 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
         isvalid = [video.valid for video in videos]
         video_thumbnails = [video.thumbnail for video in videos]
 
-        add_report(
+        report_saved = add_report(
             host,
             user,
             password,
@@ -184,12 +184,20 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
         )
 
         if task_id:
-            update_processing_status(task_id, {
-                'status': 'completed',
-                'message': 'Report generated successfully',
-                'progress': 100,
-                'completed_at': datetime.now().isoformat()
-            })
+            if report_saved:
+                update_processing_status(task_id, {
+                    'status': 'completed',
+                    'message': 'Raport wygenerowany i zapisany pomyślnie.',
+                    'progress': 100,
+                    'completed_at': datetime.now().isoformat()
+                })
+            else:
+                update_processing_status(task_id, {
+                    'status': 'error',
+                    'message': 'Odrzucono: Wykryto anomalię ucięcia listy (Błąd paginacji YouTube). Baza zabezpieczona.',
+                    'progress': 100,
+                    'completed_at': datetime.now().isoformat()
+                })
 
     except Exception as e:
         print(f"Error during report generation: {e}")
