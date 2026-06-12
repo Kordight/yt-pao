@@ -38,13 +38,11 @@ def get_playlist_content(playlist_link, ydl_opts):
         video_url = entry.get('url') or 'Unknown URL'
         video_duration = entry.get('duration') or 0  
         
-        # ZMIANA: YT czasami używa klucza 'channel' zamiast 'uploader'
+        # POPRAWKA: Mobilne API YouTube czasami zwraca dane autora w kluczu 'channel' zamiast 'uploader'
         video_uploader = entry.get('uploader') or entry.get('channel') or 'Unknown'
         video_uploader_url = entry.get('uploader_url') or entry.get('channel_url') or 'Unknown'
+        video_view_count = entry.get('view_count') or 0  
         
-        video_view_count = entry.get('view_count') or 0 
-        
-        # Szybkie wykrywanie usuniętych/prywatnych filmów na podstawie jednego pobrania
         is_valid = 1
         if video_title in ['[Deleted video]', '[Private video]'] or video_title == 'Unknown Title' or (video_uploader == 'Unknown' and video_duration == 0):
             is_valid = 0
@@ -91,12 +89,12 @@ def get_playlist_content(playlist_link, ydl_opts):
 def parse_playlist(url, listMode):
     ydl_opts_all = {
         'quiet': True,
-        'extract_flat': True,
+        'extract_flat': 'in_playlist', # Musi być 'in_playlist', żeby pobrało wszystko!
         'dump_single_json': True,
         'skip_download': True,
         'cachedir': False,
         'ignoreerrors': True,
-        'cookiefile': 'cookies.txt'
+        'cookiefile': 'cookies.txt', # Używamy ciasteczek (jeśli są)
     }
 
     # Pobieramy wszystko tylko jednym żądaniem API
