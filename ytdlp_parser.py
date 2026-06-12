@@ -88,10 +88,11 @@ def get_playlist_content(playlist_link, ydl_opts):
 def parse_playlist(url, listMode):
     ydl_opts_all = {
         'quiet': True,
-        'extract_flat': True,
+        'extract_flat': 'in_playlist',  # ZMIANA: To wymusza przewijanie stron (paginację)
         'dump_single_json': True,
         'skip_download': True,
-        'cachedir': False
+        'cachedir': False,
+        'extractor_args': {'youtube': ['player_client=web,default']}  # ZMIANA: Omija blokadę 100 wyników
     }
 
     # Pobieramy wszystko tylko jednym żądaniem API
