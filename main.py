@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 import yaml
 from html_manager import generate_html_list, read_html_template, extract_head_and_body, generate_html_list_invalid_videos
-from mySQL_manager import add_report, create_database, repair_missing_thumbnails
+from mySQL_manager import add_report, create_database, repair_missing_video_thumbnails_for_report
 
 def process_playlist_URL(playlist_URL):
     pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
