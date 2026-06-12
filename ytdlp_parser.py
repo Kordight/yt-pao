@@ -1,7 +1,6 @@
 import yt_dlp
 
 class Video:
-
     def __init__(self, title, url, duration, uploader, view_count=0, video_uploader_url=None, valid=1, thumbnail_url=None):
         self.title = title
         self.url = url
@@ -20,9 +19,7 @@ class Video:
     def __hash__(self):
         return hash(self.url)
 
-
 def get_playlist_content(playlist_link, ydl_opts):
-
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             playlist_dict = ydl.extract_info(playlist_link, download=False)
@@ -31,134 +28,90 @@ def get_playlist_content(playlist_link, ydl_opts):
             return None, []
 
     playlist_thumbnails = playlist_dict.get('thumbnails', [])
-    if playlist_thumbnails:
-        best_playlist_thumb_url = playlist_thumbnails[-1].get('url')
-    else:
-        print("No thumbnails available for the playlist.")
-        best_playlist_thumb_url = None
+    best_playlist_thumb_url = playlist_thumbnails[-1].get('url') if playlist_thumbnails else None
 
     video_entries = playlist_dict.get('entries', [])
     videos = []
+    
     for entry in video_entries:
-        video_title = entry.get('title', 'Unknown Title')
-        video_url = entry.get('url', 'Unknown URL')
-        video_duration = entry.get('duration', 0)  
-        video_uploader = entry.get('uploader', 'Unknown')
-        video_uploader_url = entry.get('uploader_url', 'Unknown')
-        video_view_count = entry.get('view_count', 0)  
+        video_title = entry.get('title') or 'Unknown Title'
+        video_url = entry.get('url') or 'Unknown URL'
+        video_duration = entry.get('duration') or 0  
+        video_uploader = entry.get('uploader') or 'Unknown'
+        video_uploader_url = entry.get('uploader_url') or 'Unknown'
+        video_view_count = entry.get('view_count') or 0  
+        
+        # Szybkie wykrywanie usuniętych/prywatnych filmów na podstawie jednego pobrania
+        is_valid = 1
+        if video_title in ['[Deleted video]', '[Private video]'] or video_title == 'Unknown Title' or (video_uploader == 'Unknown' and video_duration == 0):
+            is_valid = 0
+            
         video_best_thumbnail_url = None
         if 'thumbnails' in entry and entry['thumbnails']:
             video_best_thumbnail_url = entry['thumbnails'][-1].get('url')
-        videos.append(Video(title=video_title, url=video_url, duration=video_duration, uploader=video_uploader, view_count=video_view_count, video_uploader_url=video_uploader_url, thumbnail_url=video_best_thumbnail_url))
+            
+        videos.append(Video(
+            title=video_title, 
+            url=video_url, 
+            duration=video_duration, 
+            uploader=video_uploader, 
+            view_count=video_view_count, 
+            video_uploader_url=video_uploader_url, 
+            valid=is_valid, 
+            thumbnail_url=video_best_thumbnail_url
+        ))
+
     playlist_duration = sum(
         entry['duration'] if isinstance(entry.get('duration'), (int, float)) else 0
         for entry in video_entries
     )    
 
-    # Fallback: if playlist-level thumbnail is missing, try first video's thumbnail
     if not best_playlist_thumb_url and videos:
         first_video_thumb = videos[0].thumbnail
         if first_video_thumb:
             best_playlist_thumb_url = first_video_thumb
 
     playlist_data = {
-    'playlist_name': playlist_dict.get('title', 'Unknown Playlist'),
-    'video_entries': len(video_entries),
-    'description': playlist_dict.get('description', 'No description available'),
-    'playlist_id': playlist_dict.get('id', 'Unknown ID'),
-    'uploader': (playlist_dict.get('uploader') or 'Unknown uploader').removeprefix('by ').strip(),    'uploader_url': playlist_dict.get('uploader_url', 'Unknown URL'),
-    'url': playlist_dict.get('webpage_url', playlist_link),  
-    'playlist_duration': playlist_duration,
-    'playlist_privacy': playlist_dict.get('availability', 'public'),
-    'playlist_thumbnail': best_playlist_thumb_url
+        'playlist_name': playlist_dict.get('title', 'Unknown Playlist'),
+        'video_entries': len(video_entries),
+        'description': playlist_dict.get('description', 'No description available'),
+        'playlist_id': playlist_dict.get('id', 'Unknown ID'),
+        'uploader': (playlist_dict.get('uploader') or 'Unknown uploader').removeprefix('by ').strip(),    
+        'uploader_url': playlist_dict.get('uploader_url', 'Unknown URL'),
+        'url': playlist_dict.get('webpage_url', playlist_link),  
+        'playlist_duration': playlist_duration,
+        'playlist_privacy': playlist_dict.get('availability', 'public'),
+        'playlist_thumbnail': best_playlist_thumb_url
     }
     return playlist_data, videos
 
-
-def find_unavailable_videos(playlist_link):
-
-    # Skip invalid videos
-    ydl_opts_filtered = {
-        'quiet': True,
-        'extract_flat': True,
-        'dump_single_json': True,
-        'skip_download': True,
-        'compat_opts': ['no-youtube-unavailable-videos']
-    }
-
-    # Include all videos
-    ydl_opts_all = {
-        'quiet': True,
-        'extract_flat': True,
-        'dump_single_json': True,
-        'skip_download': True
-    }
-
-    # Download valid videos data from playlist
-    playlist_data_filtered, videos_filtered = get_playlist_content(playlist_link, ydl_opts_filtered)
-    if playlist_data_filtered is None:
-        return None, []
-
-    #  Download all videos data from playlist
-    playlist_data_all, videos_all = get_playlist_content(playlist_link, ydl_opts_all)
-    if playlist_data_all is None:
-        return None, []
-
-    # Identify invalid videos
-    filtered_urls = {video.url for video in videos_filtered}
-    unavailable_videos = [video for video in videos_all if video.url not in filtered_urls]
-    for video in unavailable_videos:
-        video.valid = 0
-    
-    # Ensure all valid flags are integers for sorting
-    for video in videos_filtered + unavailable_videos:
-        video.valid = int(video.valid) if video.valid else 1
-    return playlist_data_all, unavailable_videos
-
-
 def parse_playlist(url, listMode):
-
     ydl_opts_all = {
         'quiet': True,
         'extract_flat': True,
         'dump_single_json': True,
-        'skip_download': True
-    }
-    ydl_opts_no_unavailable = {
-        'quiet': True,
-        'extract_flat': True,
-        'dump_single_json': True,
         'skip_download': True,
-        'compat_opts': ['no-youtube-unavailable-videos']
+        'cachedir': False
     }
+
+    # Pobieramy wszystko tylko jednym żądaniem API
+    playlist_data, videos = get_playlist_content(url, ydl_opts_all)
+
+    if playlist_data is None:
+        return None, []
+
+    # Sortujemy od dostępnych do niedostępnych (tak jak w oryginalnym kodzie)
+    videos.sort(key=lambda video: video.valid, reverse=True)
 
     if listMode == "all":
-        # Download full playlist data
-        playlist_data, videos = get_playlist_content(url, ydl_opts_all)
-
-        # Find invalid videos and replace the corresponding entries in 'videos'
-        playlist_data, unavailable_videos = find_unavailable_videos(url)
-        
-        # Zastępujemy tylko te wideo, które są niedostępne
-        for unavailable_video in unavailable_videos:
-            for idx, video in enumerate(videos):
-                if video.url == unavailable_video.url:  
-                    videos[idx] = unavailable_video
-        videos.sort(key=lambda video: video.valid)
         return playlist_data, videos
-
     elif listMode == "unavailable":
-        # Find invalid videos
-        playlist_data, unavailable_videos = find_unavailable_videos(url)
-        return playlist_data, unavailable_videos
-
+        return playlist_data, [v for v in videos if v.valid == 0]
     elif listMode == "available":
-        # Download only valid videos
-        playlist_data, videos = get_playlist_content(url, ydl_opts_no_unavailable)
-        return playlist_data, videos
-
+        return playlist_data, [v for v in videos if v.valid == 1]
     else:
         raise ValueError(f"Invalid listMode: {listMode}")
+
 def calculate_total_duration(playlist_data):
     THREE_DAYS_IN_SECONDS = 3 * 24 * 3600
     total_seconds = playlist_data.get('playlist_duration', 0)
@@ -168,25 +121,20 @@ def calculate_total_duration(playlist_data):
         except Exception:
             total_seconds = 0
 
-    # Format total duration
     if total_seconds >= THREE_DAYS_IN_SECONDS:
         days = total_seconds // (24 * 3600)
         hours = (total_seconds % (24 * 3600)) // 3600
         minutes = (total_seconds % 3600) // 60
         seconds = total_seconds % 60
-        total_duration_str = f"{days}d {hours}h {minutes}m {seconds}s"
-        return total_duration_str
+        return f"{days}d {hours}h {minutes}m {seconds}s"
     elif total_seconds >= 3600:
         hours = total_seconds // 3600
         minutes = (total_seconds % 3600) // 60
         seconds = total_seconds % 60
-        total_duration_str = f"{hours}h {minutes}m {seconds}s"
-        return total_duration_str
+        return f"{hours}h {minutes}m {seconds}s"
     elif total_seconds > 0:
         minutes = total_seconds // 60
         seconds = total_seconds % 60
-        total_duration_str = f"{minutes}m {seconds}s"
-        return total_duration_str
+        return f"{minutes}m {seconds}s"
     else:
-        total_duration_str = "N/A"
-        return total_duration_str
+        return "N/A"
