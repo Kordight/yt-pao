@@ -151,7 +151,7 @@ def main():
         db_port = int(db_config.get('port', 3306) or 3306)
         
         print("[CLI] Starting thumbnail repair scan...")
-        total, repaired, failed = repair_missing_thumbnails(db_host, db_user, db_password, db_name, db_port)
+        total, repaired, failed = repair_missing_video_thumbnails_for_report(db_host, db_user, db_password, db_name, db_port)
         print(f"[CLI] Repair complete: {total} total, {repaired} repaired, {failed} failed")
         return
     
