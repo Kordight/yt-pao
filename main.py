@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 import yaml
 from html_manager import generate_html_list, read_html_template, extract_head_and_body, generate_html_list_invalid_videos
-from mySQL_manager import add_report, create_database, repair_missing_thumbnails
+from mySQL_manager import add_report, create_database, repair_missing_video_thumbnails_for_report
 
 def process_playlist_URL(playlist_URL):
     pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
@@ -151,7 +151,7 @@ def main():
         db_port = int(db_config.get('port', 3306) or 3306)
         
         print("[CLI] Starting thumbnail repair scan...")
-        total, repaired, failed = repair_missing_thumbnails(db_host, db_user, db_password, db_name, db_port)
+        total, repaired, failed = repair_missing_video_thumbnails_for_report(db_host, db_user, db_password, db_name, db_port)
         print(f"[CLI] Repair complete: {total} total, {repaired} repaired, {failed} failed")
         return
     
