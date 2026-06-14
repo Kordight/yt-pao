@@ -1125,11 +1125,24 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
     repaired = 0
     skipped = 0
 
+    base_cache_dir = os.environ.get('YT_PAO_THUMBNAIL_DIR', 'static/thumbnail_cache')
+
     cursor.execute('''
         SELECT rd.video_id, v.video_url, v.valid,
             (
-                SELECT d.thumbnail_id
+                SELECT t.file_name
                 FROM ytp_video_details d
+                JOIN ytp_thumbnails t ON t.thumbnail_id = d.thumbnail_id
+                WHERE d.video_id = rd.video_id 
+                  AND d.change_type = 'thumbnail' 
+                  AND d.report_id <= %s
+                ORDER BY d.report_id DESC, d.change_id DESC
+                LIMIT 1
+            ) AS existing_file_name,
+            (
+                SELECT t.thumbnail_id
+                FROM ytp_video_details d
+                JOIN ytp_thumbnails t ON t.thumbnail_id = d.thumbnail_id
                 WHERE d.video_id = rd.video_id 
                   AND d.change_type = 'thumbnail' 
                   AND d.report_id <= %s
@@ -1140,7 +1153,7 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
         JOIN ytp_videos v ON v.video_id = rd.video_id
         WHERE rd.report_id = %s
         ORDER BY rd.detail_id ASC
-    ''', (report_id, report_id))
+    ''', (report_id, report_id, report_id))
 
     report_videos = cursor.fetchall()
     if not report_videos:
@@ -1153,7 +1166,7 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
     if downloaded_thumbnails_cache is None:
         downloaded_thumbnails_cache = {}
 
-    for index, (video_id, video_url, video_valid, existing_thumbnail_id) in enumerate(report_videos, start=1):
+    for index, (video_id, video_url, video_valid, existing_file_name, existing_thumbnail_id) in enumerate(report_videos, start=1):
         if progress_callback:
             progress_callback(index, total_videos, f'video_id={video_id}', 'thumbnail_repair')
 
@@ -1161,13 +1174,22 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
             skipped += 1
             continue
 
-        if existing_thumbnail_id:
+        # ==============================================================
+        # Does file exist in database and on disk?
+        # ==============================================================
+        file_exists_on_disk = False
+        if existing_file_name:
+            file_path = os.path.join(base_cache_dir, existing_file_name)
+            if os.path.exists(file_path):
+                file_exists_on_disk = True
+
+        # Pomiń tylko wtedy, gdy baza ma wpis ORAZ plik fizycznie leży na dysku
+        if file_exists_on_disk:
             skipped += 1
             continue
 
         thumbnail_url = resolve_video_thumbnail_url(video_url)
         if not thumbnail_url:
-            print(f"[Validate] No thumbnail URL resolved for video_id {video_id}")
             skipped += 1
             continue
 
@@ -1177,23 +1199,33 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
             image_content = download_image(thumbnail_url)
 
         if not image_content:
-            print(f"[Validate] Failed to download thumbnail for video_id {video_id}")
             skipped += 1
             continue
-
+            
         image_hash = calculate_sha256(image_content)
         if not image_hash:
-            print(f"[Validate] Failed to hash thumbnail for video_id {video_id}")
             skipped += 1
             continue
 
         downloaded_thumbnails_cache[thumbnail_url] = (image_hash, image_content)
 
+        # Record exists in database but file is missing - try to restore it by re-downloading and saving with the same file name
+        if existing_file_name and not file_exists_on_disk:
+            print(f"[Validate] Odbudowywanie zagubionego pliku: {existing_file_name}")
+            # Save the image with the same file name to restore the missing file
+            save_image(image_content, file_name=existing_file_name)
+            
+            # Update hash in database to ensure future integrity checks work correctly
+            cursor.execute('''
+                UPDATE ytp_thumbnails SET sha256_hash = %s, source_url = %s WHERE thumbnail_id = %s
+            ''', (image_hash, thumbnail_url, existing_thumbnail_id))
+            
+            repaired += 1
+            continue
+            
+        # --- For new videos ---
         cursor.execute('''
-            SELECT thumbnail_id
-            FROM ytp_thumbnails
-            WHERE sha256_hash = %s
-            LIMIT 1
+            SELECT thumbnail_id FROM ytp_thumbnails WHERE sha256_hash = %s LIMIT 1
         ''', (image_hash,))
         thumbnail_row = cursor.fetchone()
 
@@ -1202,7 +1234,6 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
         else:
             file_name = save_image(image_content)
             if not file_name:
-                print(f"[Validate] Failed to save thumbnail for video_id {video_id}")
                 skipped += 1
                 continue
 
@@ -1213,18 +1244,14 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
             thumbnail_id = cursor.lastrowid
 
         cursor.execute('''
-            SELECT change_id
-            FROM ytp_video_details
-            WHERE video_id = %s AND report_id = %s AND change_type = 'thumbnail'
-            LIMIT 1
+            SELECT change_id FROM ytp_video_details
+            WHERE video_id = %s AND report_id = %s AND change_type = 'thumbnail' LIMIT 1
         ''', (video_id, report_id))
         existing_row = cursor.fetchone()
 
         if existing_row:
             cursor.execute('''
-                UPDATE ytp_video_details
-                SET change_value = %s, thumbnail_id = %s
-                WHERE change_id = %s
+                UPDATE ytp_video_details SET change_value = %s, thumbnail_id = %s WHERE change_id = %s
             ''', (thumbnail_url, thumbnail_id, existing_row[0]))
         else:
             cursor.execute('''
@@ -1232,7 +1259,6 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
                 VALUES (%s, %s, 'thumbnail', %s, %s)
             ''', (video_id, report_id, thumbnail_url, thumbnail_id))
 
-        print(f"[Validate] Repaired thumbnail for video_id {video_id}")
         repaired += 1
 
     return repaired, skipped
