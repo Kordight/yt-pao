@@ -1,4 +1,7 @@
 import yt_dlp
+import subprocess
+import json
+import sys
 
 class Video:
     def __init__(self, title, url, duration, uploader, view_count=0, video_uploader_url=None, valid=1, thumbnail_url=None):
@@ -60,7 +63,6 @@ def get_playlist_content(playlist_link, ydl_opts):
 
         videos.append(Video(video_title, video_url, video_duration, video_uploader, video_view_count, video_uploader_url, is_valid, video_best_thumbnail_url))
 
-    # Add basic playlist metadata
     playlist_data = {
         'playlist_name': playlist_dict.get('title') or 'Unknown Playlist',
         'description': playlist_dict.get('description') or '',
@@ -75,7 +77,42 @@ def get_playlist_content(playlist_link, ydl_opts):
 
     return playlist_data, videos
 
+# NOWOŚĆ: Kuloodporny Skan 2 wywoływany dokładnie tak, jak w terminalu!
+def get_available_urls_cli(playlist_link):
+    available_urls = set()
+    try:
+        # sys.executable gwarantuje, że używamy tego samego yt-dlp, z którym zlinkowany jest Docker
+        result = subprocess.run([
+            sys.executable, '-m', 'yt_dlp',
+            '--dump-json',
+            '--flat-playlist',
+            '--ignore-errors',
+            '--compat-options', 'no-youtube-unavailable-videos',
+            '--cookies', 'cookies.txt',
+            playlist_link
+        ], capture_output=True, text=True)
+
+        if not result.stdout.strip():
+            print("[Parser] Error: Scan CLI returned no data (Empty response).")
+            return None
+
+        for line in result.stdout.split('\n'):
+            if not line.strip():
+                continue
+            try:
+                data = json.loads(line)
+                if 'url' in data:
+                    available_urls.add(data['url'])
+            except:
+                pass
+    except Exception as e:
+        print(f"[Parser] Error: Scan CLI returned no data (Empty response).")
+        return None
+        
+    return available_urls
+
 def parse_playlist(url, listMode):
+    # SKAN 1: Płaska lista ze wszystkimi metadanymi przez szybkie API
     ydl_opts_all = {
         'quiet': True,
         'extract_flat': 'in_playlist',
@@ -86,33 +123,24 @@ def parse_playlist(url, listMode):
         'cookiefile': 'cookies.txt'
     }
 
-    ydl_opts_available = {
-        'quiet': True,
-        'extract_flat': 'in_playlist',
-        'dump_single_json': True,
-        'skip_download': True,
-        'cachedir': False,
-        'ignoreerrors': True,
-        'cookiefile': 'cookies.txt',
-        'compat_opts': set(['no-youtube-unavailable-videos'])
-    }
-
-    print("[Parser] Skan 1/2: Pobieranie struktury całej playlisty...")
+    print("[Parser] Scan 1/2: Downloading structure of the entire playlist (Python API)...")
     playlist_data, all_videos = get_playlist_content(url, ydl_opts_all)
 
     if playlist_data is None:
         return None, []
 
-    print("[Parser] Skan 2/2: Filtrowanie dostępności przez YouTube...")
-    _, available_videos = get_playlist_content(url, ydl_opts_available)
+    print("[Parser] Scan 2/2: Filtering availability through terminal (Kuloodporny)...")
+    available_urls = get_available_urls_cli(url)
 
-    available_urls = {v.url for v in available_videos}
-
-    for video in all_videos:
-        if video.url not in available_urls:
-            if video.valid != 0:
-                print(f"[OSTRZEŻENIE] Znalazłem film ukryty w Skanie 2! Zmieniam twardo status na 'Niedostępny': {video.title} ({video.url})")
-            video.valid = 0
+    if available_urls is None:
+        print("[Warning] Scan 2 failed! Skipping the second filtering layer.")
+    else:
+        # MAGIA ODEJMOWANIA
+        for video in all_videos:
+            if video.url not in available_urls:
+                if video.valid != 0:
+                    print(f"[Warning] Found hidden/blocked video! Changing status to Unavailable: {video.title} ({video.url})")
+                video.valid = 0
 
     all_videos.sort(key=lambda video: video.valid, reverse=True)
 
