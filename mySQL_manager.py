@@ -764,54 +764,6 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 video_thumbnail = video_thumbnails[index] if video_thumbnails and index < len(video_thumbnails) else None
                 update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id, video_thumbnail, downloaded_thumbnails_cache)
 
-            print("[Playlist] Szukanie zablokowanych/ukrytych filmów (Historia - Obecne)...")
-            
-            def get_vid(url):
-                # Ekstrakcja czystego ID filmu z każdego typu linku
-                m = re.search(r'(?:v=|youtu\.be/)([^&?]+)', url)
-                return m.group(1) if m else url
-                
-            current_vids_set = {get_vid(url) for url in saved_video_links}
-            
-            cursor.execute('''
-                SELECT DISTINCT v.video_id, v.video_url
-                FROM ytp_report_details rd
-                JOIN ytp_reports r ON rd.report_id = r.report_id
-                JOIN ytp_videos v ON rd.video_id = v.video_id
-                WHERE r.playlist_id = %s
-            ''', (playlist_id,))
-            historical_videos = cursor.fetchall()
-            
-            missing_videos = [hv for hv in historical_videos if get_vid(hv[1]) not in current_vids_set]
-            
-            if missing_videos:
-                print(f"[Playlist] Wykryto {len(missing_videos)} ukrytych/zablokowanych filmów! Przenoszenie do raportu...")
-                for mv_id, mv_url in missing_videos:
-                    cursor.execute('''
-                        INSERT INTO ytp_report_details (report_id, video_id)
-                        VALUES (%s, %s)
-                    ''', (report_id, mv_id))
-                    
-                    cursor.execute('''
-                        SELECT change_value 
-                        FROM ytp_video_details 
-                        WHERE video_id = %s AND change_type = 'availability'
-                        ORDER BY change_id DESC 
-                        LIMIT 1
-                    ''', (mv_id,))
-                    last_availability = cursor.fetchone()
-                    
-                    if not last_availability or last_availability[0] != '0':
-                        cursor.execute('''
-                            INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value)
-                            VALUES (%s, %s, %s, %s)
-                        ''', (mv_id, report_id, 'availability', '0'))
-                        
-                    cursor.execute('''
-                        UPDATE ytp_videos SET valid = 0 WHERE video_id = %s
-                    ''', (mv_id,))
-            # =====================================================================
-
             if progress_callback:
                 progress_callback(total_videos, total_videos, playlist_name, 'saving')
 
