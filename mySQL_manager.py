@@ -1228,7 +1228,7 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
 
         # Record exists in database but file is missing - try to restore it by re-downloading and saving with the same file name
         if existing_file_name and not file_exists_on_disk:
-            print(f"[Validate] Odbudowywanie zagubionego pliku: {existing_file_name}")
+            print(f"[Validate] Rebuilding missing file: {existing_file_name}")
             # Save the image with the same file name to restore the missing file
             save_image(image_content, file_name=existing_file_name)
             
