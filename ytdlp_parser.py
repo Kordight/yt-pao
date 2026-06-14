@@ -1,7 +1,9 @@
 import yt_dlp
+import subprocess
+import json
+import sys
 
 class Video:
-
     def __init__(self, title, url, duration, uploader, view_count=0, video_uploader_url=None, valid=1, thumbnail_url=None):
         self.title = title
         self.url = url
@@ -20,9 +22,7 @@ class Video:
     def __hash__(self):
         return hash(self.url)
 
-
 def get_playlist_content(playlist_link, ydl_opts):
-
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             playlist_dict = ydl.extract_info(playlist_link, download=False)
@@ -31,134 +31,128 @@ def get_playlist_content(playlist_link, ydl_opts):
             return None, []
 
     playlist_thumbnails = playlist_dict.get('thumbnails', [])
-    if playlist_thumbnails:
-        best_playlist_thumb_url = playlist_thumbnails[-1].get('url')
-    else:
-        print("No thumbnails available for the playlist.")
-        best_playlist_thumb_url = None
+    best_playlist_thumb_url = playlist_thumbnails[-1].get('url') if playlist_thumbnails else None
 
     video_entries = playlist_dict.get('entries', [])
     videos = []
+    
     for entry in video_entries:
-        video_title = entry.get('title', 'Unknown Title')
-        video_url = entry.get('url', 'Unknown URL')
-        video_duration = entry.get('duration', 0)  
-        video_uploader = entry.get('uploader', 'Unknown')
-        video_uploader_url = entry.get('uploader_url', 'Unknown')
-        video_view_count = entry.get('view_count', 0)  
+        if not entry:
+            continue
+            
+        video_title = entry.get('title') or 'Unknown Title'
+        video_url = entry.get('url') or 'Unknown URL'
+        video_duration = entry.get('duration') or 0  
+        
+        video_uploader = entry.get('uploader') or entry.get('channel') or 'Unknown'
+        video_uploader_url = entry.get('uploader_url') or entry.get('channel_url') or 'Unknown'
+        video_view_count = entry.get('view_count') or 0  
+        
+        is_valid = 1
+        vt_clean = str(video_title).strip()
+        
+        if '[Deleted video]' in vt_clean or '[Private video]' in vt_clean or '[Video deleted]' in vt_clean or vt_clean == 'Unknown Title':
+            is_valid = 0
+        elif (not video_duration or video_duration == 0) and video_uploader in ['Unknown', 'Unknown author', None]:
+            is_valid = 0
+            
         video_best_thumbnail_url = None
-        if 'thumbnails' in entry and entry['thumbnails']:
-            video_best_thumbnail_url = entry['thumbnails'][-1].get('url')
-        videos.append(Video(title=video_title, url=video_url, duration=video_duration, uploader=video_uploader, view_count=video_view_count, video_uploader_url=video_uploader_url, thumbnail_url=video_best_thumbnail_url))
-    playlist_duration = sum(
-        entry['duration'] if isinstance(entry.get('duration'), (int, float)) else 0
-        for entry in video_entries
-    )    
+        thumbnails = entry.get('thumbnails', [])
+        if thumbnails:
+            video_best_thumbnail_url = thumbnails[-1].get('url')
 
-    # Fallback: if playlist-level thumbnail is missing, try first video's thumbnail
-    if not best_playlist_thumb_url and videos:
-        first_video_thumb = videos[0].thumbnail
-        if first_video_thumb:
-            best_playlist_thumb_url = first_video_thumb
+        videos.append(Video(video_title, video_url, video_duration, video_uploader, video_view_count, video_uploader_url, is_valid, video_best_thumbnail_url))
 
     playlist_data = {
-    'playlist_name': playlist_dict.get('title', 'Unknown Playlist'),
-    'video_entries': len(video_entries),
-    'description': playlist_dict.get('description', 'No description available'),
-    'playlist_id': playlist_dict.get('id', 'Unknown ID'),
-    'uploader': (playlist_dict.get('uploader') or 'Unknown uploader').removeprefix('by ').strip(),    'uploader_url': playlist_dict.get('uploader_url', 'Unknown URL'),
-    'url': playlist_dict.get('webpage_url', playlist_link),  
-    'playlist_duration': playlist_duration,
-    'playlist_privacy': playlist_dict.get('availability', 'public'),
-    'playlist_thumbnail': best_playlist_thumb_url
+        'playlist_name': playlist_dict.get('title') or 'Unknown Playlist',
+        'description': playlist_dict.get('description') or '',
+        'playlist_id': playlist_dict.get('id') or 'Unknown ID',
+        'uploader': playlist_dict.get('uploader') or playlist_dict.get('channel') or 'Unknown',
+        'uploader_url': playlist_dict.get('uploader_url') or playlist_dict.get('channel_url') or 'Unknown',
+        'url': playlist_link,
+        'playlist_duration': sum(v.duration for v in videos),
+        'playlist_privacy': playlist_dict.get('availability') or 'unknown',
+        'playlist_thumbnail': best_playlist_thumb_url
     }
+
     return playlist_data, videos
 
+# NOWOŚĆ: Kuloodporny Skan 2 wywoływany dokładnie tak, jak w terminalu!
+def get_available_urls_cli(playlist_link):
+    available_urls = set()
+    try:
+        # sys.executable gwarantuje, że używamy tego samego yt-dlp, z którym zlinkowany jest Docker
+        result = subprocess.run([
+            sys.executable, '-m', 'yt_dlp',
+            '--dump-json',
+            '--flat-playlist',
+            '--ignore-errors',
+            '--compat-options', 'no-youtube-unavailable-videos',
+            '--cookies', 'cookies.txt',
+            playlist_link
+        ], capture_output=True, text=True)
 
-def find_unavailable_videos(playlist_link):
+        if not result.stdout.strip():
+            print("[Parser] Error: Scan CLI returned no data (Empty response).")
+            return None
 
-    # Skip invalid videos
-    ydl_opts_filtered = {
-        'quiet': True,
-        'extract_flat': True,
-        'dump_single_json': True,
-        'skip_download': True,
-        'compat_opts': ['no-youtube-unavailable-videos']
-    }
-
-    # Include all videos
-    ydl_opts_all = {
-        'quiet': True,
-        'extract_flat': True,
-        'dump_single_json': True,
-        'skip_download': True
-    }
-
-    # Download valid videos data from playlist
-    playlist_data_filtered, videos_filtered = get_playlist_content(playlist_link, ydl_opts_filtered)
-    if playlist_data_filtered is None:
-        return None, []
-
-    #  Download all videos data from playlist
-    playlist_data_all, videos_all = get_playlist_content(playlist_link, ydl_opts_all)
-    if playlist_data_all is None:
-        return None, []
-
-    # Identify invalid videos
-    filtered_urls = {video.url for video in videos_filtered}
-    unavailable_videos = [video for video in videos_all if video.url not in filtered_urls]
-    for video in unavailable_videos:
-        video.valid = 0
-    
-    # Ensure all valid flags are integers for sorting
-    for video in videos_filtered + unavailable_videos:
-        video.valid = int(video.valid) if video.valid else 1
-    return playlist_data_all, unavailable_videos
-
+        for line in result.stdout.split('\n'):
+            if not line.strip():
+                continue
+            try:
+                data = json.loads(line)
+                if 'url' in data:
+                    available_urls.add(data['url'])
+            except:
+                pass
+    except Exception as e:
+        print(f"[Parser] Error: Scan CLI returned no data (Empty response).")
+        return None
+        
+    return available_urls
 
 def parse_playlist(url, listMode):
-
+    # SKAN 1: Płaska lista ze wszystkimi metadanymi przez szybkie API
     ydl_opts_all = {
         'quiet': True,
-        'extract_flat': True,
-        'dump_single_json': True,
-        'skip_download': True
-    }
-    ydl_opts_no_unavailable = {
-        'quiet': True,
-        'extract_flat': True,
+        'extract_flat': 'in_playlist',
         'dump_single_json': True,
         'skip_download': True,
-        'compat_opts': ['no-youtube-unavailable-videos']
+        'cachedir': False,
+        'ignoreerrors': True,
+        'cookiefile': 'cookies.txt'
     }
 
+    print("[Parser] Scan 1/2: Downloading structure of the entire playlist (Python API)...")
+    playlist_data, all_videos = get_playlist_content(url, ydl_opts_all)
+
+    if playlist_data is None:
+        return None, []
+
+    print("[Parser] Scan 2/2: Filtering availability through terminal (CLI)...")
+    available_urls = get_available_urls_cli(url)
+
+    if available_urls is None:
+        print("[Warning] Scan 2 failed! Skipping the second filtering layer.")
+    else:
+        # MAGIA ODEJMOWANIA
+        for video in all_videos:
+            if video.url not in available_urls:
+                if video.valid != 0:
+                    print(f"[Warning] Found hidden/blocked video! Changing status to Unavailable: {video.title} ({video.url})")
+                video.valid = 0
+
+    all_videos.sort(key=lambda video: video.valid, reverse=True)
+
     if listMode == "all":
-        # Download full playlist data
-        playlist_data, videos = get_playlist_content(url, ydl_opts_all)
-
-        # Find invalid videos and replace the corresponding entries in 'videos'
-        playlist_data, unavailable_videos = find_unavailable_videos(url)
-        
-        # Zastępujemy tylko te wideo, które są niedostępne
-        for unavailable_video in unavailable_videos:
-            for idx, video in enumerate(videos):
-                if video.url == unavailable_video.url:  
-                    videos[idx] = unavailable_video
-        videos.sort(key=lambda video: video.valid)
-        return playlist_data, videos
-
+        return playlist_data, all_videos
     elif listMode == "unavailable":
-        # Find invalid videos
-        playlist_data, unavailable_videos = find_unavailable_videos(url)
-        return playlist_data, unavailable_videos
-
+        return playlist_data, [v for v in all_videos if v.valid == 0]
     elif listMode == "available":
-        # Download only valid videos
-        playlist_data, videos = get_playlist_content(url, ydl_opts_no_unavailable)
-        return playlist_data, videos
-
+        return playlist_data, [v for v in all_videos if v.valid == 1]
     else:
         raise ValueError(f"Invalid listMode: {listMode}")
+
 def calculate_total_duration(playlist_data):
     THREE_DAYS_IN_SECONDS = 3 * 24 * 3600
     total_seconds = playlist_data.get('playlist_duration', 0)
@@ -168,25 +162,18 @@ def calculate_total_duration(playlist_data):
         except Exception:
             total_seconds = 0
 
-    # Format total duration
     if total_seconds >= THREE_DAYS_IN_SECONDS:
         days = total_seconds // (24 * 3600)
         hours = (total_seconds % (24 * 3600)) // 3600
         minutes = (total_seconds % 3600) // 60
         seconds = total_seconds % 60
-        total_duration_str = f"{days}d {hours}h {minutes}m {seconds}s"
-        return total_duration_str
+        return f"{days}d {hours}h {minutes}m {seconds}s"
     elif total_seconds >= 3600:
         hours = total_seconds // 3600
         minutes = (total_seconds % 3600) // 60
         seconds = total_seconds % 60
-        total_duration_str = f"{hours}h {minutes}m {seconds}s"
-        return total_duration_str
-    elif total_seconds > 0:
+        return f"{hours}h {minutes}m {seconds}s"
+    else:
         minutes = total_seconds // 60
         seconds = total_seconds % 60
-        total_duration_str = f"{minutes}m {seconds}s"
-        return total_duration_str
-    else:
-        total_duration_str = "N/A"
-        return total_duration_str
+        return f"{minutes}m {seconds}s"

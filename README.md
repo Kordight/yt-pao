@@ -41,6 +41,21 @@ cd YT-PAO
 pip install -r requirements.txt
 ```
 
+## Handling YouTube Anti-Bot Protections (Limits & Missing Uploaders)
+
+Due to aggressive anti-bot protections, YouTube limits unauthenticated API requests to a maximum of 100 videos per playlist and aggressively removes metadata like Uploaders and View Counts (showing as `Unknown` or `0`). 
+
+To bypass this and fetch full playlists (e.g., 1000+ videos), you **must** authenticate `yt-dlp` using a valid browser session cookie.
+
+### How to set up `cookies.txt`:
+1. Open your browser and log in to YouTube (a secondary/dummy account is fine).
+2. **Play any video for about 5-10 seconds**. This is a crucial step to generate required "PO Tokens" that prove you are not a bot.
+3. Use a browser extension like **"Get cookies.txt LOCALLY"** (available for Chrome/Firefox) while on the YouTube tab.
+4. Export the cookies and save the file exactly as `cookies.txt` in the root directory of this project (next to `main.py`).
+5. Restart your Docker containers. The `docker-compose.yml` file is configured to mount this file directly into the backend container.
+
+*Note: Cookies expire over time or when you manually log out of that session in your browser. If you start seeing 100-video limits again, simply repeat the process to refresh your `cookies.txt`.*
+
 ## Usage
 
 CLI (original terminal mode):

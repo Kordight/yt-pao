@@ -93,23 +93,25 @@ def calculate_sha256(image_content):
     return sha256_hash.hexdigest()
 
 # Save image to disk as a real JPEG file
+# Save image to disk as a real JPEG file
 def save_image(image_content, file_name=None):
     if not image_content:
         return None
 
-    os.makedirs('static/thumbnail_cache', exist_ok=True)
+    base_cache_dir = os.environ.get('YT_PAO_THUMBNAIL_DIR', 'static/thumbnail_cache')
+    
+    os.makedirs(base_cache_dir, exist_ok=True)
     if file_name is None:
         file_name = uuid.uuid4().hex + '.jpg'  # Generate a unique file name
-    file_path = os.path.join('static', 'thumbnail_cache', file_name)
+    file_path = os.path.join(base_cache_dir, file_name)
 
     try:
         with Image.open(BytesIO(image_content)) as img:
             # JPEG does not support alpha channels.
-            if img.mode in ('RGBA', 'LA', 'P'):
-                img = img.convert('RGB')
-            img.save(file_path, format='JPEG', quality=95)
-            print(f"Image saved: {file_path}")
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            img.save(file_path, "JPEG", quality=85)
         return file_name
-    except Exception as e:
-        print(f"Error converting image to JPEG: {e}")
+    except IOError as e:
+        print(f"Error saving image {file_name}: {e}")
         return None

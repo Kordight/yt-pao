@@ -3,6 +3,7 @@ from mysql.connector import Error
 from datetime import datetime, timezone
 import os
 import yt_dlp
+import re
 from thumbnail_parser import download_image, calculate_sha256, save_image
 
 def normalize_view_count(view_count):
@@ -24,8 +25,16 @@ def normalize_boolean_flag(value, default=1):
     if isinstance(value, (int, float)):
         return 1 if value else 0
 
+    if isinstance(value, (bytes, bytearray)):
+        if len(value) == 1 and value[0] in (0, 1):
+            return int(value[0])
+        try:
+            value = value.decode('utf-8')
+        except Exception:
+            pass
+
     text_value = str(value).strip().lower()
-    if text_value in ('0', 'false', 'no', 'off', 'unavailable', 'private', 'deleted'):
+    if text_value in ('0', 'false', 'no', 'off', 'unavailable', 'private', 'deleted', '\x00'):
         return 0
     return 1
 
@@ -109,18 +118,20 @@ def create_database(host, user, password, database, port=3306):
                 )
             ''')
 
+            # PLAYLIST DETAILS - ENUM only for playlists
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS ytp_playlist_details (
                     change_id INT AUTO_INCREMENT PRIMARY KEY,
                     report_id INT,
                     thumbnail_id INT,
-                    change_type ENUM('description', 'title', 'thumbnail', 'privacy') NOT NULL,
+                    change_type ENUM('title', 'description', 'privacy', 'thumbnail') NOT NULL,
                     change_value TEXT, 
                     FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id) ON DELETE CASCADE ON UPDATE CASCADE,
                     FOREIGN KEY (thumbnail_id) REFERENCES ytp_thumbnails(thumbnail_id) ON DELETE CASCADE ON UPDATE CASCADE
                 )
             ''')
 
+            # VIDEO DETAILS - ENUM only for videos
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS ytp_video_details (
                     change_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -174,8 +185,9 @@ def create_database(host, user, password, database, port=3306):
                             )
                             cursor.execute(f"ALTER TABLE {table_name} {alter_sql}")
 
-            # Update video details
-            
+            # ==========================================
+            # Update ytp_video_details
+            # ==========================================
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
                 'change_type': "MODIFY COLUMN change_type ENUM('title', 'views', 'availability', 'thumbnail') NOT NULL",
@@ -194,9 +206,11 @@ def create_database(host, user, password, database, port=3306):
                 'change_value': True,
                 'thumbnail_id': False
             }
-
             update_collumnns_in_table('ytp_video_details', required_columns, expected_types, expected_nullable)
 
+            # ==========================================
+            # Update ytp_thumbnails
+            # ==========================================
             required_columns = {
                 'source_url': "ADD COLUMN source_url VARCHAR(1024)"
             }
@@ -206,14 +220,14 @@ def create_database(host, user, password, database, port=3306):
             expected_nullable = {
                 'source_url': True
             }
-
             update_collumnns_in_table('ytp_thumbnails', required_columns, expected_types, expected_nullable)
 
-            # Update playlist details
-
+            # ==========================================
+            # Update ytp_playlist_details
+            # ==========================================
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
-                'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'privacy', 'thumbnail')",
+                'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'privacy', 'thumbnail') NOT NULL",
                 'change_value': "MODIFY COLUMN change_value TEXT"
             }
             expected_types = {
@@ -226,11 +240,11 @@ def create_database(host, user, password, database, port=3306):
                 'change_type': False,
                 'change_value': True
             }
-
             update_collumnns_in_table('ytp_playlist_details', required_columns, expected_types, expected_nullable)
 
-            # Update playlist list
-
+            # ==========================================
+            # Update ytp_playlists
+            # ==========================================
             required_columns = {
                 'playlist_name': "MODIFY COLUMN playlist_name VARCHAR(255) NOT NULL",
                 'playlist_url': "MODIFY COLUMN playlist_url VARCHAR(255) NOT NULL",
@@ -249,7 +263,6 @@ def create_database(host, user, password, database, port=3306):
                 'playlist_author': True,
                 'playlist_author_url': True
             }
-
             update_collumnns_in_table('ytp_playlists', required_columns, expected_types, expected_nullable)
 
             # Ensure thumbnail_id and its constraint exist in ytp_playlist_details
@@ -621,7 +634,7 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
         print(f"[ERROR] Video ID {video_id} ('{video_title}') has NO thumbnail provided by yt-dlp!")
     
 def add_report(host, user, password, database, port, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails=None, downloaded_thumbnails_cache=None, batch_size=50, playlist_author=None, playlist_author_url=None, progress_callback=None):
-    conn = None  # Initialize conn to None
+    conn = None
     try:
         db_port = int(port or 3306)
         conn = mysql.connector.connect(
@@ -644,36 +657,33 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
 
             if result:
                 playlist_id = result[0]
-
                 total_videos = len(video_titles)
-                
-                if total_videos <= 110:
+                valid_videos_count = sum(1 for v in isvalidl if normalize_boolean_flag(v, default=1) == 1)
+
+                if (95 <= total_videos <= 110) or (95 <= valid_videos_count <= 110):
                     cursor.execute('''
-                        SELECT report_id 
-                        FROM ytp_reports 
-                        WHERE playlist_id = %s 
-                        ORDER BY report_id DESC 
-                        LIMIT 1
-                    ''', (playlist_id,))
-                    last_report_result = cursor.fetchone()
-                    
-                    if last_report_result:
-                        last_report_id = last_report_result[0]
-                        cursor.execute('''
-                            SELECT COUNT(*) 
+                        SELECT MAX(cnt) FROM (
+                            SELECT COUNT(*) as cnt 
                             FROM ytp_report_details 
-                            WHERE report_id = %s
-                        ''', (last_report_id,))
-                        last_count_result = cursor.fetchone()
-                        
-                        last_count = last_count_result[0] if last_count_result else 0
-                        
-                        # If the difference is significant (greater than 20)
-                        # This indicates that yt-dlp "cut" the list after the first page.
-                        if last_count > 110 and (last_count - total_videos) >= 20:
-                            print(f"[Warning] Detected anomaly! Playlist (ID: {playlist_id}). "
-                                  f"Downloaded {total_videos} videos, but previously there were {last_count}. "
+                            JOIN ytp_reports ON ytp_report_details.report_id = ytp_reports.report_id
+                            WHERE ytp_reports.playlist_id = %s
+                            GROUP BY ytp_reports.report_id
+                        ) as sub
+                    ''', (playlist_id,))
+                    max_count_result = cursor.fetchone()
+                    max_count = max_count_result[0] if max_count_result and max_count_result[0] else 0
+                    
+                    if max_count > 120:
+                        if (95 <= total_videos <= 110) and (max_count - total_videos) >= 20:
+                            print(f"[Warning] Detected total anomaly! Playlist (ID: {playlist_id}). "
+                                  f"Downloaded {total_videos} videos, but max previously there were {max_count}. "
                                   "Possible API pagination error. Skipping reporting.")
+                            return False
+                            
+                        if (95 <= valid_videos_count <= 110) and (max_count - valid_videos_count) >= 20:
+                            print(f"[Warning] Detected availability anomaly! Playlist (ID: {playlist_id}). "
+                                  f"Downloaded {total_videos} videos, but only {valid_videos_count} are valid. "
+                                  f"Max previously there were {max_count}. Possible API pagination error on filtered list. Skipping reporting.")
                             return False
 
                 # Fill ytp_playlists columns if null in database but available from yt-dlp
@@ -716,8 +726,6 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
             report_id = cursor.lastrowid
             update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description, playlist_privacy, playlist_thumbnail, downloaded_thumbnails_cache)
 
-            total_videos = len(video_titles)
-
             # Add videos and report details
             for index, (title, link, length, uploader_row, uploader_url_row, view_count_row, isvalid_row) in enumerate(zip(video_titles, saved_video_links, video_durations, uploader, uploader_url, view_count, isvalidl)):
                 print(f"[Video {index + 1}/{total_videos}] Processing {title}")
@@ -734,7 +742,9 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
 
                 if video_result:
                     video_id = video_result[0]
-                    # print(f"[Video {index + 1}/{total_videos}] Duplicate video in playlist (or already in DB), reusing ID: {video_id}")
+                    cursor.execute('''
+                        UPDATE ytp_videos SET valid = %s WHERE video_id = %s
+                    ''', (isvalid_row, video_id))
                 else:
                     # Add video
                     cursor.execute('''
@@ -749,6 +759,7 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 INSERT INTO ytp_report_details (report_id, video_id)
                 VALUES (%s, %s)
                 ''', (report_id, video_id))
+                
                 # Update video metadata if it has changed
                 video_thumbnail = video_thumbnails[index] if video_thumbnails and index < len(video_thumbnails) else None
                 update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id, video_thumbnail, downloaded_thumbnails_cache)
@@ -776,6 +787,7 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
         if conn and conn.is_connected():
             cursor.close()
             conn.close()
+
 
 def create_cursor(host, user, password, database, port=3306):
     try:
@@ -1121,142 +1133,152 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
 
 def get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id):
     cursor.execute('''
-        SELECT file_name, source_url FROM ytp_thumbnails WHERE thumbnail_id = %s
+        SELECT file_name FROM ytp_thumbnails WHERE thumbnail_id = %s
     ''', (thumbnail_id,))
     result = cursor.fetchone()
-    if not result:
-        return None
-    
-    file_name, source_url = result
-    file_path = os.path.join('static', 'thumbnail_cache', file_name)
-    
-    # Check if file actually exists on disk
-    if os.path.exists(file_path):
-        return file_name
-    
-    # File missing: re-download and save with the same filename
-    print(f"[Thumbnail] File missing on disk: {file_name}, re-downloading from {source_url}")
-    if source_url:
-        try:
-            image_content = download_image(source_url)
-            if image_content:
-                saved_name = save_image(image_content, file_name)
-                if saved_name:
-                    # Update SHA256 in DB for this thumbnail_id
-                    try:
-                        new_hash = calculate_sha256(image_content)
-                        if new_hash:
-                            cursor.execute('''SELECT thumbnail_id FROM ytp_thumbnails WHERE file_name = %s''', (file_name,))
-                            find = cursor.fetchone()
-                            if find:
-                                tid = find[0]
-                                cursor.execute('''UPDATE ytp_thumbnails SET sha256_hash = %s WHERE thumbnail_id = %s''', (new_hash, tid))
-                                print(f"[Thumbnail] Re-downloaded and updated SHA256 for thumbnail_id {tid}")
-                    except Exception as e:
-                        print(f"[Thumbnail] Failed to update SHA256 after re-download: {e}")
-                    print(f"[Thumbnail] Re-downloaded and saved as: {saved_name}")
-                    return saved_name
-        except Exception as e:
-            print(f"[Thumbnail] Failed to re-download: {e}")
-    
-    # If re-download failed, return None so caller can handle it
-    return None
+    return result[0] if result else None
 
-def repair_missing_thumbnails(host, user, password, database, port=3306):
-    """
-    Scan all thumbnails in DB and repair missing files by re-downloading them.
-    Returns tuple: (total_scanned, repaired_count, failed_count)
-    """
-    conn = None
-    try:
-        db_port = int(port or 3306)
-        conn = mysql.connector.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=database,
-            port=db_port,
-            auth_plugin='mysql_native_password')
-        
-        if not conn.is_connected():
-            print("[Repair] Failed to connect to database")
-            return (0, 0, 0)
-        
-        cursor = conn.cursor()
-        
-        # Fetch all thumbnails
-        cursor.execute('''
-            SELECT thumbnail_id, file_name, source_url, sha256_hash
-            FROM ytp_thumbnails
-            ORDER BY thumbnail_id ASC
-        ''')
-        
-        all_thumbnails = cursor.fetchall()
-        total = len(all_thumbnails)
-        repaired = 0
-        failed = 0
-        
-        print(f"[Repair] Starting scan of {total} thumbnails...")
-        
-        for thumbnail_id, file_name, source_url, current_hash in all_thumbnails:
-            file_path = os.path.join('static', 'thumbnail_cache', file_name)
-            
+def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thumbnails_cache=None, progress_callback=None):
+    repaired = 0
+    skipped = 0
+
+    base_cache_dir = os.environ.get('YT_PAO_THUMBNAIL_DIR', 'static/thumbnail_cache')
+
+    cursor.execute('''
+        SELECT rd.video_id, v.video_url, v.valid,
+            (
+                SELECT t.file_name
+                FROM ytp_video_details d
+                JOIN ytp_thumbnails t ON t.thumbnail_id = d.thumbnail_id
+                WHERE d.video_id = rd.video_id 
+                  AND d.change_type = 'thumbnail' 
+                  AND d.report_id <= %s
+                ORDER BY d.report_id DESC, d.change_id DESC
+                LIMIT 1
+            ) AS existing_file_name,
+            (
+                SELECT t.thumbnail_id
+                FROM ytp_video_details d
+                JOIN ytp_thumbnails t ON t.thumbnail_id = d.thumbnail_id
+                WHERE d.video_id = rd.video_id 
+                  AND d.change_type = 'thumbnail' 
+                  AND d.report_id <= %s
+                ORDER BY d.report_id DESC, d.change_id DESC
+                LIMIT 1
+            ) AS existing_thumbnail_id
+        FROM ytp_report_details rd
+        JOIN ytp_videos v ON v.video_id = rd.video_id
+        WHERE rd.report_id = %s
+        ORDER BY rd.detail_id ASC
+    ''', (report_id, report_id, report_id))
+
+    report_videos = cursor.fetchall()
+    if not report_videos:
+        return repaired, skipped
+
+    total_videos = len(report_videos)
+    if progress_callback:
+        progress_callback(0, total_videos, None, 'thumbnail_repair')
+
+    if downloaded_thumbnails_cache is None:
+        downloaded_thumbnails_cache = {}
+
+    for index, (video_id, video_url, video_valid, existing_file_name, existing_thumbnail_id) in enumerate(report_videos, start=1):
+        if progress_callback:
+            progress_callback(index, total_videos, f'video_id={video_id}', 'thumbnail_repair')
+
+        if normalize_boolean_flag(video_valid, default=1) == 0:
+            skipped += 1
+            continue
+
+        # ==============================================================
+        # Does file exist in database and on disk?
+        # ==============================================================
+        file_exists_on_disk = False
+        if existing_file_name:
+            file_path = os.path.join(base_cache_dir, existing_file_name)
             if os.path.exists(file_path):
-                # File exists, check if we need to validate
+                file_exists_on_disk = True
+
+        # Pomiń tylko wtedy, gdy baza ma wpis ORAZ plik fizycznie leży na dysku
+        if file_exists_on_disk:
+            skipped += 1
+            continue
+
+        thumbnail_url = resolve_video_thumbnail_url(video_url)
+        if not thumbnail_url:
+            skipped += 1
+            continue
+
+        cached_entry = downloaded_thumbnails_cache.get(thumbnail_url)
+        image_content = cached_entry[1] if cached_entry else None
+        if image_content is None:
+            image_content = download_image(thumbnail_url)
+
+        if not image_content:
+            skipped += 1
+            continue
+            
+        image_hash = calculate_sha256(image_content)
+        if not image_hash:
+            skipped += 1
+            continue
+
+        downloaded_thumbnails_cache[thumbnail_url] = (image_hash, image_content)
+
+        # Record exists in database but file is missing - try to restore it by re-downloading and saving with the same file name
+        if existing_file_name and not file_exists_on_disk:
+            print(f"[Validate] Rebuilding missing file: {existing_file_name}")
+            # Save the image with the same file name to restore the missing file
+            save_image(image_content, file_name=existing_file_name)
+            
+            # Update hash in database to ensure future integrity checks work correctly
+            cursor.execute('''
+                UPDATE ytp_thumbnails SET sha256_hash = %s, source_url = %s WHERE thumbnail_id = %s
+            ''', (image_hash, thumbnail_url, existing_thumbnail_id))
+            
+            repaired += 1
+            continue
+            
+        # --- For new videos ---
+        cursor.execute('''
+            SELECT thumbnail_id FROM ytp_thumbnails WHERE sha256_hash = %s LIMIT 1
+        ''', (image_hash,))
+        thumbnail_row = cursor.fetchone()
+
+        if thumbnail_row:
+            thumbnail_id = thumbnail_row[0]
+        else:
+            file_name = save_image(image_content)
+            if not file_name:
+                skipped += 1
                 continue
-            
-            # File missing
-            print(f"[Repair] Thumbnail {thumbnail_id} missing: {file_name}")
-            
-            if not source_url:
-                print(f"[Repair] No source_url to re-download {file_name}, skipping")
-                failed += 1
-                continue
-            
-            try:
-                # Download
-                image_content = download_image(source_url)
-                if not image_content:
-                    print(f"[Repair] Failed to download {file_name} from {source_url}")
-                    failed += 1
-                    continue
-                
-                # Save with original filename
-                saved_name = save_image(image_content, file_name)
-                if not saved_name:
-                    print(f"[Repair] Failed to save {file_name}")
-                    failed += 1
-                    continue
-                
-                # Calculate new hash
-                new_hash = calculate_sha256(image_content)
-                if new_hash:
-                    cursor.execute('''
-                        UPDATE ytp_thumbnails 
-                        SET sha256_hash = %s 
-                        WHERE thumbnail_id = %s
-                    ''', (new_hash, thumbnail_id))
-                    conn.commit()
-                    print(f"[Repair] Successfully repaired thumbnail_id {thumbnail_id}: {file_name}")
-                    repaired += 1
-                else:
-                    print(f"[Repair] Failed to calculate SHA256 for {file_name}")
-                    failed += 1
-                    
-            except Exception as e:
-                print(f"[Repair] Error repairing thumbnail_id {thumbnail_id}: {e}")
-                failed += 1
-        
-        print(f"[Repair] Done. Total: {total}, Repaired: {repaired}, Failed: {failed}")
-        return (total, repaired, failed)
-        
-    except Error as e:
-        print(f"[Repair] Database error: {e}")
-        return (0, 0, 0)
-    finally:
-        if conn and conn.is_connected():
-            cursor.close()
-            conn.close()
+
+            cursor.execute('''
+                INSERT INTO ytp_thumbnails (file_name, source_url, sha256_hash)
+                VALUES (%s, %s, %s)
+            ''', (file_name, thumbnail_url, image_hash))
+            thumbnail_id = cursor.lastrowid
+
+        cursor.execute('''
+            SELECT change_id FROM ytp_video_details
+            WHERE video_id = %s AND report_id = %s AND change_type = 'thumbnail' LIMIT 1
+        ''', (video_id, report_id))
+        existing_row = cursor.fetchone()
+
+        if existing_row:
+            cursor.execute('''
+                UPDATE ytp_video_details SET change_value = %s, thumbnail_id = %s WHERE change_id = %s
+            ''', (thumbnail_url, thumbnail_id, existing_row[0]))
+        else:
+            cursor.execute('''
+                INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value, thumbnail_id)
+                VALUES (%s, %s, 'thumbnail', %s, %s)
+            ''', (video_id, report_id, thumbnail_url, thumbnail_id))
+
+        repaired += 1
+
+    return repaired, skipped
 
 def get_playlist_length_by_report_id(cursor, report_id):
     cursor.execute('''
@@ -1310,7 +1332,6 @@ def get_playlist_content_by_report_id(cursor, report_id):
         videos = []
         total_duration = 0
 
-        # Calculate total duration using SQL SUM for the entire report
         try:
             cursor.execute('''
                 SELECT COALESCE(SUM(v.video_duration), 0)
@@ -1324,19 +1345,19 @@ def get_playlist_content_by_report_id(cursor, report_id):
             print(f"Error calculating total duration for report {report_id}: {e}")
             total_duration = 0
 
-        # Bulk load basic video rows (one query) and attempt to recover thumbnails for unavailable videos
         if video_ids:
             try:
-                # Correlated subquery to get latest thumbnail file name up to this report
+                # ZMIANA: Potężne zapytanie wyciągające nazwy plików miniatury bez pętli i bez N+1
                 cursor.execute('''
                     SELECT v.video_id, v.video_title, v.video_url, v.video_duration, v.uploader, v.uploader_url, v.view_count, v.valid,
                         (
-                                    SELECT d.thumbnail_id
-                                    FROM ytp_video_details d
-                                    WHERE d.video_id = v.video_id AND d.change_type = 'thumbnail' AND d.report_id <= %s
-                                    ORDER BY d.report_id DESC, d.change_id DESC
-                                    LIMIT 1
-                                ) AS thumbnail_id
+                            SELECT t.file_name
+                            FROM ytp_video_details d
+                            JOIN ytp_thumbnails t ON t.thumbnail_id = d.thumbnail_id
+                            WHERE d.video_id = v.video_id AND d.change_type = 'thumbnail' AND d.report_id <= %s
+                            ORDER BY d.report_id DESC, d.change_id DESC
+                            LIMIT 1
+                        ) AS thumbnail_file
                     FROM ytp_videos v
                     JOIN ytp_report_details rd ON rd.video_id = v.video_id
                     WHERE rd.report_id = %s
@@ -1344,8 +1365,7 @@ def get_playlist_content_by_report_id(cursor, report_id):
                 ''', (report_id, report_id))
 
                 for row in cursor.fetchall():
-                    vid, base_title, video_url, duration, uploader, uploader_url, view_count, valid, thumbnail_id = row
-                    thumbnail_file = get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id) if thumbnail_id else None
+                    vid, base_title, video_url, duration, uploader, uploader_url, view_count, valid, thumbnail_file = row
                     thumbnail_url = f"/static/thumbnail_cache/{thumbnail_file}" if thumbnail_file else None
 
                     video_obj = {
@@ -1365,19 +1385,26 @@ def get_playlist_content_by_report_id(cursor, report_id):
                         'wayback_search_url': get_wayback_machine_search_url(video_url) if not normalize_boolean_flag(valid, default=1) else None,
                     }
 
-                    # If the video is unavailable, try to recover title/thumbnail from last available report
                     if video_obj['valid'] == 0:
                         last_ok = get_last_available_video_report_id(cursor, vid, report_id)
                         if last_ok is not None:
                             recovered_title = get_latest_video_detail(cursor, vid, 'title', last_ok)
-                            recovered_thumbnail_id = get_latest_video_detail(cursor, vid, 'thumbnail', last_ok)
+                            
+                            cursor.execute('''
+                                SELECT t.file_name
+                                FROM ytp_video_details d
+                                JOIN ytp_thumbnails t ON t.thumbnail_id = d.thumbnail_id
+                                WHERE d.video_id = %s AND d.change_type = 'thumbnail' AND d.report_id <= %s
+                                ORDER BY d.report_id DESC, d.change_id DESC
+                                LIMIT 1
+                            ''', (vid, last_ok))
+                            rec_thumb = cursor.fetchone()
+                            
                             if recovered_title:
                                 video_obj['display_title'] = recovered_title
                                 video_obj['recovered_from_history'] = True
-                            if recovered_thumbnail_id:
-                                thumb_file = get_thumbnail_file_name_by_thumbnail_id(cursor, recovered_thumbnail_id)
-                                if thumb_file:
-                                    video_obj['display_thumbnail_url'] = f"/static/thumbnail_cache/{thumb_file}"
+                            if rec_thumb and rec_thumb[0]:
+                                video_obj['display_thumbnail_url'] = f"/static/thumbnail_cache/{rec_thumb[0]}"
 
                     videos.append(video_obj)
 
