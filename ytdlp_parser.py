@@ -87,31 +87,51 @@ def get_playlist_content(playlist_link, ydl_opts):
     return playlist_data, videos
 
 def parse_playlist(url, listMode):
+
     ydl_opts_all = {
         'quiet': True,
-        'extract_flat': 'in_playlist', # Musi być 'in_playlist', żeby pobrało wszystko!
+        'extract_flat': 'in_playlist',
         'dump_single_json': True,
         'skip_download': True,
         'cachedir': False,
         'ignoreerrors': True,
-        'cookiefile': 'cookies.txt', # Używamy ciasteczek (jeśli są)
+        'cookiefile': 'cookies.txt'
     }
 
-    # Pobieramy wszystko tylko jednym żądaniem API
-    playlist_data, videos = get_playlist_content(url, ydl_opts_all)
+    ydl_opts_available = {
+        'quiet': True,
+        'extract_flat': 'in_playlist',
+        'dump_single_json': True,
+        'skip_download': True,
+        'cachedir': False,
+        'ignoreerrors': True,
+        'cookiefile': 'cookies.txt',
+        'compat_opts': ['no-youtube-unavailable-videos']  # <--- MAGIA!
+    }
+
+    print(f"[Parser] Scan 1/2: Downloading playlist data from YouTube...")
+    playlist_data, all_videos = get_playlist_content(url, ydl_opts_all)
 
     if playlist_data is None:
         return None, []
 
-    # Sortujemy od dostępnych do niedostępnych (tak jak w oryginalnym kodzie)
-    videos.sort(key=lambda video: video.valid, reverse=True)
+    print(f"[Parser] Scan 2/2: Filtering availability through YouTube...")
+    _, available_videos = get_playlist_content(url, ydl_opts_available)
+
+    available_urls = {v.url for v in available_videos}
+
+    for video in all_videos:
+        if video.url not in available_urls:
+            video.valid = 0
+
+    all_videos.sort(key=lambda video: video.valid, reverse=True)
 
     if listMode == "all":
-        return playlist_data, videos
+        return playlist_data, all_videos
     elif listMode == "unavailable":
-        return playlist_data, [v for v in videos if v.valid == 0]
+        return playlist_data, [v for v in all_videos if v.valid == 0]
     elif listMode == "available":
-        return playlist_data, [v for v in videos if v.valid == 1]
+        return playlist_data, [v for v in all_videos if v.valid == 1]
     else:
         raise ValueError(f"Invalid listMode: {listMode}")
 
