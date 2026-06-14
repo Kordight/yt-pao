@@ -129,7 +129,7 @@ def parse_playlist(url, listMode):
     if playlist_data is None:
         return None, []
 
-    print("[Parser] Scan 2/2: Filtering availability through terminal (Kuloodporny)...")
+    print("[Parser] Scan 2/2: Filtering availability through terminal (CLI)...")
     available_urls = get_available_urls_cli(url)
 
     if available_urls is None:
