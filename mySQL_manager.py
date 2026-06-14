@@ -3,6 +3,7 @@ from mysql.connector import Error
 from datetime import datetime, timezone
 import os
 import yt_dlp
+import re
 from thumbnail_parser import download_image, calculate_sha256, save_image
 
 def normalize_view_count(view_count):
@@ -24,8 +25,16 @@ def normalize_boolean_flag(value, default=1):
     if isinstance(value, (int, float)):
         return 1 if value else 0
 
+    if isinstance(value, (bytes, bytearray)):
+        if len(value) == 1 and value[0] in (0, 1):
+            return int(value[0])
+        try:
+            value = value.decode('utf-8')
+        except Exception:
+            pass
+
     text_value = str(value).strip().lower()
-    if text_value in ('0', 'false', 'no', 'off', 'unavailable', 'private', 'deleted'):
+    if text_value in ('0', 'false', 'no', 'off', 'unavailable', 'private', 'deleted', '\x00'):
         return 0
     return 1
 
@@ -109,18 +118,20 @@ def create_database(host, user, password, database, port=3306):
                 )
             ''')
 
+            # PLAYLIST DETAILS - ENUM only for playlists
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS ytp_playlist_details (
                     change_id INT AUTO_INCREMENT PRIMARY KEY,
                     report_id INT,
                     thumbnail_id INT,
-                    change_type ENUM('description', 'title', 'thumbnail', 'privacy') NOT NULL,
+                    change_type ENUM('title', 'description', 'privacy', 'thumbnail') NOT NULL,
                     change_value TEXT, 
                     FOREIGN KEY (report_id) REFERENCES ytp_reports(report_id) ON DELETE CASCADE ON UPDATE CASCADE,
                     FOREIGN KEY (thumbnail_id) REFERENCES ytp_thumbnails(thumbnail_id) ON DELETE CASCADE ON UPDATE CASCADE
                 )
             ''')
 
+            # VIDEO DETAILS - ENUM only for videos
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS ytp_video_details (
                     change_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -174,8 +185,9 @@ def create_database(host, user, password, database, port=3306):
                             )
                             cursor.execute(f"ALTER TABLE {table_name} {alter_sql}")
 
-            # Update video details
-            
+            # ==========================================
+            # Update ytp_video_details
+            # ==========================================
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
                 'change_type': "MODIFY COLUMN change_type ENUM('title', 'views', 'availability', 'thumbnail') NOT NULL",
@@ -194,9 +206,11 @@ def create_database(host, user, password, database, port=3306):
                 'change_value': True,
                 'thumbnail_id': False
             }
-
             update_collumnns_in_table('ytp_video_details', required_columns, expected_types, expected_nullable)
 
+            # ==========================================
+            # Update ytp_thumbnails
+            # ==========================================
             required_columns = {
                 'source_url': "ADD COLUMN source_url VARCHAR(1024)"
             }
@@ -206,14 +220,14 @@ def create_database(host, user, password, database, port=3306):
             expected_nullable = {
                 'source_url': True
             }
-
             update_collumnns_in_table('ytp_thumbnails', required_columns, expected_types, expected_nullable)
 
-            # Update playlist details
-
+            # ==========================================
+            # Update ytp_playlist_details
+            # ==========================================
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
-                'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'privacy', 'thumbnail')",
+                'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'privacy', 'thumbnail') NOT NULL",
                 'change_value': "MODIFY COLUMN change_value TEXT"
             }
             expected_types = {
@@ -226,11 +240,11 @@ def create_database(host, user, password, database, port=3306):
                 'change_type': False,
                 'change_value': True
             }
-
             update_collumnns_in_table('ytp_playlist_details', required_columns, expected_types, expected_nullable)
 
-            # Update playlist list
-
+            # ==========================================
+            # Update ytp_playlists
+            # ==========================================
             required_columns = {
                 'playlist_name': "MODIFY COLUMN playlist_name VARCHAR(255) NOT NULL",
                 'playlist_url': "MODIFY COLUMN playlist_url VARCHAR(255) NOT NULL",
@@ -249,7 +263,6 @@ def create_database(host, user, password, database, port=3306):
                 'playlist_author': True,
                 'playlist_author_url': True
             }
-
             update_collumnns_in_table('ytp_playlists', required_columns, expected_types, expected_nullable)
 
             # Ensure thumbnail_id and its constraint exist in ytp_playlist_details
@@ -729,6 +742,9 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
 
                 if video_result:
                     video_id = video_result[0]
+                    cursor.execute('''
+                        UPDATE ytp_videos SET valid = %s WHERE video_id = %s
+                    ''', (isvalid_row, video_id))
                 else:
                     # Add video
                     cursor.execute('''
@@ -747,6 +763,54 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 # Update video metadata if it has changed
                 video_thumbnail = video_thumbnails[index] if video_thumbnails and index < len(video_thumbnails) else None
                 update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id, video_thumbnail, downloaded_thumbnails_cache)
+
+            print("[Playlist] Szukanie zablokowanych/ukrytych filmów (Historia - Obecne)...")
+            
+            def get_vid(url):
+                # Ekstrakcja czystego ID filmu z każdego typu linku
+                m = re.search(r'(?:v=|youtu\.be/)([^&?]+)', url)
+                return m.group(1) if m else url
+                
+            current_vids_set = {get_vid(url) for url in saved_video_links}
+            
+            cursor.execute('''
+                SELECT DISTINCT v.video_id, v.video_url
+                FROM ytp_report_details rd
+                JOIN ytp_reports r ON rd.report_id = r.report_id
+                JOIN ytp_videos v ON rd.video_id = v.video_id
+                WHERE r.playlist_id = %s
+            ''', (playlist_id,))
+            historical_videos = cursor.fetchall()
+            
+            missing_videos = [hv for hv in historical_videos if get_vid(hv[1]) not in current_vids_set]
+            
+            if missing_videos:
+                print(f"[Playlist] Wykryto {len(missing_videos)} ukrytych/zablokowanych filmów! Przenoszenie do raportu...")
+                for mv_id, mv_url in missing_videos:
+                    cursor.execute('''
+                        INSERT INTO ytp_report_details (report_id, video_id)
+                        VALUES (%s, %s)
+                    ''', (report_id, mv_id))
+                    
+                    cursor.execute('''
+                        SELECT change_value 
+                        FROM ytp_video_details 
+                        WHERE video_id = %s AND change_type = 'availability'
+                        ORDER BY change_id DESC 
+                        LIMIT 1
+                    ''', (mv_id,))
+                    last_availability = cursor.fetchone()
+                    
+                    if not last_availability or last_availability[0] != '0':
+                        cursor.execute('''
+                            INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value)
+                            VALUES (%s, %s, %s, %s)
+                        ''', (mv_id, report_id, 'availability', '0'))
+                        
+                    cursor.execute('''
+                        UPDATE ytp_videos SET valid = 0 WHERE video_id = %s
+                    ''', (mv_id,))
+            # =====================================================================
 
             if progress_callback:
                 progress_callback(total_videos, total_videos, playlist_name, 'saving')
@@ -771,6 +835,7 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
         if conn and conn.is_connected():
             cursor.close()
             conn.close()
+
 
 def create_cursor(host, user, password, database, port=3306):
     try:
