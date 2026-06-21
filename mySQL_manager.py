@@ -660,31 +660,32 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 total_videos = len(video_titles)
                 valid_videos_count = sum(1 for v in isvalidl if normalize_boolean_flag(v, default=1) == 1)
 
-                if (95 <= total_videos <= 110) or (95 <= valid_videos_count <= 110):
-                    cursor.execute('''
-                        SELECT MAX(cnt) FROM (
-                            SELECT COUNT(*) as cnt 
-                            FROM ytp_report_details 
-                            JOIN ytp_reports ON ytp_report_details.report_id = ytp_reports.report_id
-                            WHERE ytp_reports.playlist_id = %s
-                            GROUP BY ytp_reports.report_id
-                        ) as sub
-                    ''', (playlist_id,))
-                    max_count_result = cursor.fetchone()
-                    max_count = max_count_result[0] if max_count_result and max_count_result[0] else 0
-                    
-                    if max_count > 120:
-                        if (95 <= total_videos <= 110) and (max_count - total_videos) >= 20:
-                            print(f"[Warning] Detected total anomaly! Playlist (ID: {playlist_id}). "
-                                  f"Downloaded {total_videos} videos, but max previously there were {max_count}. "
-                                  "Possible API pagination error. Skipping reporting.")
-                            return False
-                            
-                        if (95 <= valid_videos_count <= 110) and (max_count - valid_videos_count) >= 20:
-                            print(f"[Warning] Detected availability anomaly! Playlist (ID: {playlist_id}). "
-                                  f"Downloaded {total_videos} videos, but only {valid_videos_count} are valid. "
-                                  f"Max previously there were {max_count}. Possible API pagination error on filtered list. Skipping reporting.")
-                            return False
+                if (98 <= total_videos <= 102) or (98 <= valid_videos_count <= 102):
+                        cursor.execute('''
+                            SELECT MAX(cnt) FROM (
+                                SELECT COUNT(*) as cnt 
+                                FROM ytp_report_details 
+                                JOIN ytp_reports ON ytp_report_details.report_id = ytp_reports.report_id
+                                WHERE ytp_reports.playlist_id = %s
+                                GROUP BY ytp_reports.report_id
+                            ) as sub
+                        ''', (playlist_id,))
+                        max_count_result = cursor.fetchone()
+                        max_count = max_count_result[0] if max_count_result and max_count_result[0] else 0
+                        
+                        # Detect anomalies in total videos and valid videos count to avoid false reporting due to API pagination issues
+                        if max_count >= 130:
+                            if (98 <= total_videos <= 102) and (max_count - total_videos) >= 25:
+                                print(f"[Warning] Detected total anomaly! Playlist (ID: {playlist_id}). "
+                                    f"Downloaded {total_videos} videos, but max previously there were {max_count}. "
+                                    "Possible API pagination error. Skipping reporting.")
+                                return False
+                                
+                            if (98 <= valid_videos_count <= 102) and (max_count - valid_videos_count) >= 25:
+                                print(f"[Warning] Detected availability anomaly! Playlist (ID: {playlist_id}). "
+                                    f"Downloaded {total_videos} videos, but only {valid_videos_count} are valid. "
+                                    f"Max previously there were {max_count}. Possible API pagination error on filtered list. Skipping reporting.")
+                                return False
 
                 # Fill ytp_playlists columns if null in database but available from yt-dlp
                 cursor.execute('''
