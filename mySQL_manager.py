@@ -655,11 +655,13 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
             ''', (playlist_url,))
             result = cursor.fetchone()
 
+            total_videos = len(video_titles)
+            valid_videos_count = sum(1 for v in isvalidl if normalize_boolean_flag(v, default=1) == 1)
+
             if result:
                 playlist_id = result[0]
-                total_videos = len(video_titles)
-                valid_videos_count = sum(1 for v in isvalidl if normalize_boolean_flag(v, default=1) == 1)
 
+                # Anomaly detection for playlists around 100 videos to avoid false reporting due to API pagination issues - if we see a report with around 100 videos but the max count in history is much higher, we can assume it's an API pagination issue and skip reporting to avoid polluting the database with inaccurate data. This is especially important for playlists that are frequently updated and hover around the 100 video mark, as they are more likely to be affected by pagination inconsistencies.
                 if (98 <= total_videos <= 102) or (98 <= valid_videos_count <= 102):
                         cursor.execute('''
                             SELECT MAX(cnt) FROM (
@@ -677,14 +679,14 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                         if max_count >= 130:
                             if (98 <= total_videos <= 102) and (max_count - total_videos) >= 25:
                                 print(f"[Warning] Detected total anomaly! Playlist (ID: {playlist_id}). "
-                                    f"Downloaded {total_videos} videos, but max previously there were {max_count}. "
-                                    "Possible API pagination error. Skipping reporting.")
+                                      f"Downloaded {total_videos} videos, but max previously there were {max_count}. "
+                                      "Possible API pagination error. Skipping reporting.")
                                 return False
                                 
                             if (98 <= valid_videos_count <= 102) and (max_count - valid_videos_count) >= 25:
                                 print(f"[Warning] Detected availability anomaly! Playlist (ID: {playlist_id}). "
-                                    f"Downloaded {total_videos} videos, but only {valid_videos_count} are valid. "
-                                    f"Max previously there were {max_count}. Possible API pagination error on filtered list. Skipping reporting.")
+                                      f"Downloaded {total_videos} videos, but only {valid_videos_count} are valid. "
+                                      f"Max previously there were {max_count}. Possible API pagination error on filtered list. Skipping reporting.")
                                 return False
 
                 # Fill ytp_playlists columns if null in database but available from yt-dlp
@@ -695,6 +697,7 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 ''', (playlist_id,))
                 existing_playlist = cursor.fetchone()
                 existing_name, existing_author, existing_author_url = existing_playlist
+                
                 if (not existing_name or existing_name.strip() == '') and playlist_name:
                     cursor.execute('''
                         UPDATE ytp_playlists SET playlist_name = %s WHERE playlist_id = %s
@@ -788,8 +791,6 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
         if conn and conn.is_connected():
             cursor.close()
             conn.close()
-
-
 def create_cursor(host, user, password, database, port=3306):
     try:
         db_port = int(port or 3306)
