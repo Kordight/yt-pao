@@ -1232,12 +1232,19 @@ def repair_missing_video_thumbnails_for_report(cursor, report_id, downloaded_thu
             print(f"[Validate] Rebuilding missing file: {existing_file_name}")
             # Save the image with the same file name to restore the missing file
             save_image(image_content, file_name=existing_file_name)
-            
-            # Update hash in database to ensure future integrity checks work correctly
-            cursor.execute('''
+                    
+            # Update the hash in the database to reflect the re-downloaded file
+            try:
+                cursor.execute('''
                 UPDATE ytp_thumbnails SET sha256_hash = %s, source_url = %s WHERE thumbnail_id = %s
-            ''', (image_hash, thumbnail_url, existing_thumbnail_id))
-            
+                ''', (image_hash, thumbnail_url, existing_thumbnail_id))
+            except mysql.connector.Error as err:
+                if err.errno == 1062:
+                # Duplicate entry error, likely due to another thumbnail having the same hash, likely default youtube thumbnail. In this case, we can skip updating the hash and just keep the existing one.
+                    pass
+                else:
+                    raise
+                    
             repaired += 1
             continue
             
