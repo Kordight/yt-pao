@@ -190,6 +190,10 @@ WHERE v1.video_id IS NULL;
 
 ```
 
+## Architecture
+
+The core of this project is the Python/FastAPI backend, MySQL database design, and the data processing logic (which originally evolved from my custom CLI scripts). The React frontend was quickly scaffolded with the help of AI purely to visualize the backend data, as my main focus as a developer is backend engineering and infrastructure.
+
 ## Authors
 
-- **Kordight** - [GitHub](https://github.com/Kordight)
+- **Kordight (Sebastian Legieziński)** - [GitHub](https://github.com/Kordight)
