@@ -103,7 +103,7 @@ def get_available_urls_cli(playlist_link):
                 data = json.loads(line)
                 if 'url' in data:
                     available_urls.add(data['url'])
-            except:
+            except json.JSONDecodeError:
                 pass
     except Exception as e:
         print(f"[Parser] Error: Scan CLI returned no data (Empty response).")
