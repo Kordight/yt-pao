@@ -72,7 +72,8 @@ def get_playlist_content(playlist_link, ydl_opts):
         'url': playlist_link,
         'playlist_duration': sum(v.duration for v in videos),
         'playlist_privacy': playlist_dict.get('availability') or 'unknown',
-        'playlist_thumbnail': best_playlist_thumb_url
+        'playlist_thumbnail': best_playlist_thumb_url,
+        'playlist_video_count': len(videos)
     }
 
     return playlist_data, videos
@@ -160,11 +161,14 @@ def parse_playlist(url, listMode):
 def calculate_total_duration(playlist_data):
     THREE_DAYS_IN_SECONDS = 3 * 24 * 3600
     total_seconds = playlist_data.get('playlist_duration', 0)
+    videos = playlist_data.get('playlist_video_count', 0)
     if not isinstance(total_seconds, int):
         try:
             total_seconds = int(total_seconds)
         except Exception:
             total_seconds = 0
+    if total_seconds <= 0 and videos:
+        return "Unknown"
 
     if total_seconds >= THREE_DAYS_IN_SECONDS:
         days = total_seconds // (24 * 3600)
