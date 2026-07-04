@@ -92,8 +92,12 @@ def get_available_urls_cli(playlist_link):
             playlist_link
         ], capture_output=True, text=True)
 
+        if result.returncode != 0:
+            print(f"[Parser] Error: yt-dlp CLI failed (exit {result.returncode}): {result.stderr.strip()}")
+            return None
+
         if not result.stdout.strip():
-            print("[Parser] Error: Scan CLI returned no data (Empty response).")
+            print(f"[Parser] Error: yt-dlp CLI returned no data. stderr: {result.stderr.strip()}")
             return None
 
         for line in result.stdout.split('\n'):
