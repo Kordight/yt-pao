@@ -3,7 +3,6 @@ from mysql.connector import Error
 from datetime import datetime, timezone
 import os
 import yt_dlp
-import re
 from thumbnail_parser import download_image, calculate_sha256, save_image
 
 def normalize_view_count(view_count):
