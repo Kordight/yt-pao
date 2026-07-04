@@ -1,4 +1,5 @@
 import argparse
+from html import parser
 import re
 import sys
 from ytdlp_parser import parse_playlist, calculate_total_duration
@@ -6,7 +7,7 @@ import os
 from datetime import datetime
 import yaml
 from html_manager import generate_html_list, read_html_template, extract_head_and_body, generate_html_list_invalid_videos
-from mySQL_manager import add_report, create_database, repair_missing_video_thumbnails_for_report
+from mySQL_manager import add_report, create_database, repair_missing_video_thumbnails_for_report, create_cursor
 
 def process_playlist_URL(playlist_URL):
     pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
@@ -37,12 +38,14 @@ def parse_args():
                         help="The report format. Available options: cmd, txt, json, mySQL, csv, html.")
     parser.add_argument('--listMode', type=str, required=False, choices=['all', 'unavailable', 'available'],
                         help="The work mode. Available options: all, unavailable, available.")
-    parser.add_argument('--repair-thumbnails', action='store_true', help="Scan and repair missing thumbnail files from database.")
-    # Parse arguments
+    parser.add_argument('--repair-thumbnails', action='store_true', help="Scan and repair missing thumbnail files for a report.")
+    parser.add_argument('--report-id', type=int, required=False, help="Report ID for thumbnail repair scan.")
     args = parser.parse_args()
     
-    # Validate arguments
-    if not args.repair_thumbnails:
+    if args.repair_thumbnails:
+        if args.report_id is None:
+            parser.error("--report-id is required with --repair-thumbnails")
+    else:
         if not args.playlistLink or not args.resultFormat or not args.listMode:
             parser.error("--playlistLink, --resultFormat, and --listMode are required unless using --repair-thumbnails")
     
@@ -150,9 +153,19 @@ def main():
         db_name = db_config.get('database', 'yt_pao_db')
         db_port = int(db_config.get('port', 3306) or 3306)
         
-        print("[CLI] Starting thumbnail repair scan...")
-        total, repaired, failed = repair_missing_video_thumbnails_for_report(db_host, db_user, db_password, db_name, db_port)
-        print(f"[CLI] Repair complete: {total} total, {repaired} repaired, {failed} failed")
+        cursor, connection = create_cursor(db_host, db_user, db_password, db_name, db_port)
+        if not cursor or not connection:
+            print("[CLI] Failed to connect to database.", file=sys.stderr)
+            return
+
+        try:
+            print(f"[CLI] Starting thumbnail repair scan for report_id={args.report_id}...")
+            repaired, skipped = repair_missing_video_thumbnails_for_report(cursor, args.report_id)
+            connection.commit()
+            print(f"[CLI] Repair complete: total={repaired + skipped}, repaired={repaired}, skipped={skipped}")
+        finally:
+            cursor.close()
+            connection.close()
         return
     
     date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
