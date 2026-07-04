@@ -191,10 +191,9 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
                     'progress': 100,
                     'completed_at': datetime.now().isoformat()
                 })
-            else:
                 update_processing_status(task_id, {
                     'status': 'error',
-                    'message': 'Rejected: Detected total anomaly! Report was not saved.',
+                    'message': 'Report was not saved (rejected or failed). Check server logs for details.',
                     'progress': 100,
                     'completed_at': datetime.now().isoformat()
                 })
