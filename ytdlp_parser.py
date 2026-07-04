@@ -110,7 +110,7 @@ def get_available_urls_cli(playlist_link):
             except json.JSONDecodeError:
                 pass
     except Exception as e:
-        print(f"[Parser] Error: Scan CLI returned no data (Empty response).")
+        print(f"[Parser] Error: yt-dlp CLI scan failed: {e}")
         return None
         
     return available_urls
