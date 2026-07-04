@@ -747,7 +747,7 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                     video_id = video_result[0]
                     cursor.execute('''
                         UPDATE ytp_videos SET valid = %s WHERE video_id = %s
-                    ''', (isvalid_row, video_id))
+                    ''', (normalize_boolean_flag(isvalid_row, default=1), video_id))
                 else:
                     # Add video
                     cursor.execute('''
