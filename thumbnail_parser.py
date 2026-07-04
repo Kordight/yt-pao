@@ -93,7 +93,6 @@ def calculate_sha256(image_content):
     return sha256_hash.hexdigest()
 
 # Save image to disk as a real JPEG file
-# Save image to disk as a real JPEG file
 def save_image(image_content, file_name=None):
     if not image_content:
         return None
