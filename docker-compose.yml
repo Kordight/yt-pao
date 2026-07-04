@@ -34,6 +34,7 @@ services:
       DB_NAME: ${DB_NAME:-yt_pao_db}
     volumes:
       - thumbnails:/app/static/thumbnail_cache
+      - ./cookies.txt:/app/cookies.txt
     ports:
       - "8001:8000"
 
