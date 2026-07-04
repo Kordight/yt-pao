@@ -107,7 +107,7 @@ def save_image(image_content, file_name=None):
     try:
         with Image.open(BytesIO(image_content)) as img:
             # JPEG does not support alpha channels.
-            if img.mode in ("RGBA", "P"):
+            if img.mode in ("RGBA", "P", "LA"):
                 img = img.convert("RGB")
             img.save(file_path, "JPEG", quality=85)
         return file_name
