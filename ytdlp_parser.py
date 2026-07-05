@@ -4,12 +4,13 @@ import json
 import sys
 
 class Video:
-    def __init__(self, title, url, duration, uploader, view_count=0, video_uploader_url=None, valid=1, thumbnail_url=None, description=None):
+    def __init__(self, title, url, duration, uploader, view_count=0, like_count=0, video_uploader_url=None, valid=1, thumbnail_url=None, description=None):
         self.title = title
         self.url = url
         self.duration = duration
         self.uploader = uploader
         self.view_count = view_count
+        self.like_count = like_count
         self.uploader_url = video_uploader_url
         self.valid = valid
         self.thumbnail = thumbnail_url
@@ -48,6 +49,7 @@ def get_playlist_content(playlist_link, ydl_opts):
         video_uploader = entry.get('uploader') or entry.get('channel') or 'Unknown'
         video_uploader_url = entry.get('uploader_url') or entry.get('channel_url') or 'Unknown'
         video_view_count = entry.get('view_count') or 0  
+        video_like_count = entry.get('like_count') or 0
         video_description = entry.get('description') or ''
         
         is_valid = 1
@@ -63,7 +65,7 @@ def get_playlist_content(playlist_link, ydl_opts):
         if thumbnails:
             video_best_thumbnail_url = thumbnails[-1].get('url')
 
-        videos.append(Video(video_title, video_url, video_duration, video_uploader, video_view_count, video_uploader_url, is_valid, video_best_thumbnail_url, video_description))
+        videos.append(Video(video_title, video_url, video_duration, video_uploader, video_view_count, video_like_count, video_uploader_url, is_valid, video_best_thumbnail_url, video_description))
 
     playlist_data = {
         'playlist_name': playlist_dict.get('title') or 'Unknown Playlist',

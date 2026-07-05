@@ -16,6 +16,9 @@ def normalize_text(value, default=''):
         return default
     return str(value)
 
+def normalize_description(value):
+    return normalize_text(value, default='')
+
 def normalize_boolean_flag(value, default=1):
     if value is None:
         return default
@@ -137,7 +140,7 @@ def create_database(host, user, password, database, port=3306):
                     video_id INT NOT NULL,
                     report_id INT NOT NULL,
                     thumbnail_id INT,
-                    change_type ENUM('title', 'views', 'availability', 'thumbnail') NOT NULL,
+                    change_type ENUM('title', 'description', 'views', 'availability', 'thumbnail') NOT NULL,
                     change_value TEXT,
                     FOREIGN KEY (video_id) REFERENCES ytp_videos(video_id)
                         ON DELETE CASCADE ON UPDATE CASCADE,
@@ -189,13 +192,13 @@ def create_database(host, user, password, database, port=3306):
             # ==========================================
             required_columns = {
                 'report_id': "ADD COLUMN report_id INT",
-                'change_type': "MODIFY COLUMN change_type ENUM('title', 'views', 'availability', 'thumbnail') NOT NULL",
+                'change_type': "MODIFY COLUMN change_type ENUM('title', 'description', 'views', 'availability', 'thumbnail') NOT NULL",
                 'change_value': "MODIFY COLUMN change_value TEXT",
                 'thumbnail_id': "ADD COLUMN thumbnail_id INT, ADD CONSTRAINT fk_video_details_thumbnail FOREIGN KEY (thumbnail_id) REFERENCES ytp_thumbnails(thumbnail_id) ON DELETE CASCADE ON UPDATE CASCADE"
             }
             expected_types = {
                 'report_id': 'int',
-                'change_type': "enum('title','views','availability','thumbnail')",
+                'change_type': "enum('title','description','views','availability','thumbnail')",
                 'change_value': 'text',
                 'thumbnail_id': 'int'
             }
@@ -471,23 +474,33 @@ def update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist
                 VALUES (%s, 'thumbnail', NULL)
             ''', (report_id,))
 
-def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, availability, report_id, video_thumbnail, downloaded_thumbnails_cache=None):
-    # Check if the video title has changed
+def insert_video_detail_if_changed(cursor, video_id, report_id, change_type, change_value):
     cursor.execute('''
-        SELECT change_value 
-        FROM ytp_video_details 
-        WHERE video_id = %s AND change_type = 'title'
-        ORDER BY change_id DESC 
+        SELECT change_value
+        FROM ytp_video_details
+        WHERE video_id = %s AND change_type = %s
+        ORDER BY change_id DESC
         LIMIT 1
-    ''', (video_id,))
-    last_title = cursor.fetchone()
-    
-    if not last_title or last_title[0] != video_title:
+    ''', (video_id, change_type))
+    previous_value = cursor.fetchone()
+
+    new_value = normalize_text(change_value, default='')
+    if not previous_value or normalize_text(previous_value[0], default='') != new_value:
         cursor.execute('''
             INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value)
             VALUES (%s, %s, %s, %s)
-        ''', (video_id, report_id, 'title', video_title))
-    
+        ''', (video_id, report_id, change_type, new_value))
+        return True
+    return False
+
+def update_video_metadata_if_changed(cursor, video_id, video_title, video_description, view_count, availability, report_id, video_thumbnail, downloaded_thumbnails_cache=None):
+    normalized_title = normalize_text(video_title, default='Unknown Title')
+    normalized_description = normalize_description(video_description)
+    normalized_availability = normalize_boolean_flag(availability, default=1)
+
+    insert_video_detail_if_changed(cursor, video_id, report_id, 'title', normalized_title)
+    insert_video_detail_if_changed(cursor, video_id, report_id, 'description', normalized_description)
+
     normalized_view_count = int(normalize_view_count(view_count))
 
     # Check if view count changed
@@ -506,26 +519,9 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
             INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value)
             VALUES (%s, %s, %s, %s)
         ''', (video_id, report_id, 'views', normalized_view_count))
-        #print(f"Updated view count for video {video_id} to {normalized_view_count}, because it changed from {last_view_count[0] if last_view_count else 'None'} to {normalized_view_count}; last_view_count: {last_view_count[0] if last_view_count else 'None'}")
-
-    # Check if availability changed
-    cursor.execute('''
-        SELECT change_value 
-        FROM ytp_video_details 
-        WHERE video_id = %s AND change_type = 'availability'
-        ORDER BY change_id DESC 
-        LIMIT 1
-    ''', (video_id,))
-    last_availability = cursor.fetchone()
-    
-    if not last_availability or last_availability[0] != str(availability):
-        cursor.execute('''
-            INSERT INTO ytp_video_details (video_id, report_id, change_type, change_value)
-            VALUES (%s, %s, %s, %s)
-        ''', (video_id, report_id, 'availability', str(availability)))
+    insert_video_detail_if_changed(cursor, video_id, report_id, 'availability', str(normalized_availability))
     
     # Skip thumbnail download for unavailable/deleted videos to prevent 404 loops on placeholder URLs
-    normalized_availability = normalize_boolean_flag(availability, default=1)
     if normalized_availability == 0:
         print(f"[Video {video_id}] Skipping thumbnail download for unavailable video")
         return
@@ -632,7 +628,7 @@ def update_video_metadata_if_changed(cursor, video_id, video_title, view_count, 
     else:
         print(f"[ERROR] Video ID {video_id} ('{video_title}') has NO thumbnail provided by yt-dlp!")
     
-def add_report(host, user, password, database, port, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails=None, downloaded_thumbnails_cache=None, batch_size=50, playlist_author=None, playlist_author_url=None, progress_callback=None):
+def add_report(host, user, password, database, port, video_titles, saved_video_links, playlist_name, playlist_url, video_durations, video_descriptions, uploader, uploader_url, view_count, isvalidl, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails=None, downloaded_thumbnails_cache=None, batch_size=50, playlist_author=None, playlist_author_url=None, progress_callback=None):
     conn = None
     try:
         db_port = int(port or 3306)
@@ -656,6 +652,10 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
 
             total_videos = len(video_titles)
             valid_videos_count = sum(1 for v in isvalidl if normalize_boolean_flag(v, default=1) == 1)
+            if video_descriptions is None:
+                video_descriptions = [''] * total_videos
+            elif len(video_descriptions) < total_videos:
+                video_descriptions = list(video_descriptions) + [''] * (total_videos - len(video_descriptions))
 
             if result:
                 playlist_id = result[0]
@@ -730,7 +730,7 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
             update_playlist_metadata_if_changed(cursor, playlist_id, report_id, playlist_name, playlist_description, playlist_privacy, playlist_thumbnail, downloaded_thumbnails_cache)
 
             # Add videos and report details
-            for index, (title, link, length, uploader_row, uploader_url_row, view_count_row, isvalid_row) in enumerate(zip(video_titles, saved_video_links, video_durations, uploader, uploader_url, view_count, isvalidl)):
+            for index, (title, link, length, description_row, uploader_row, uploader_url_row, view_count_row, isvalid_row) in enumerate(zip(video_titles, saved_video_links, video_durations, video_descriptions, uploader, uploader_url, view_count, isvalidl)):
                 print(f"[Video {index + 1}/{total_videos}] Processing {title}")
                 if progress_callback:
                     progress_callback(index + 1, total_videos, title, 'processing')
@@ -765,7 +765,7 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 
                 # Update video metadata if it has changed
                 video_thumbnail = video_thumbnails[index] if video_thumbnails and index < len(video_thumbnails) else None
-                update_video_metadata_if_changed(cursor, video_id, title, view_count_row, isvalid_row, report_id, video_thumbnail, downloaded_thumbnails_cache)
+                update_video_metadata_if_changed(cursor, video_id, title, description_row, view_count_row, isvalid_row, report_id, video_thumbnail, downloaded_thumbnails_cache)
 
             if progress_callback:
                 progress_callback(total_videos, total_videos, playlist_name, 'saving')
@@ -1249,6 +1249,13 @@ def get_playlist_content_by_report_id(cursor, report_id):
                 cursor.execute('''
                     SELECT v.video_id, v.video_title, v.video_url, v.video_duration, v.uploader, v.uploader_url, v.view_count, v.valid,
                         (
+                            SELECT d.change_value
+                            FROM ytp_video_details d
+                            WHERE d.video_id = v.video_id AND d.change_type = 'description' AND d.report_id <= %s
+                            ORDER BY d.report_id DESC, d.change_id DESC
+                            LIMIT 1
+                        ) AS description_value,
+                        (
                             SELECT t.file_name
                             FROM ytp_video_details d
                             JOIN ytp_thumbnails t ON t.thumbnail_id = d.thumbnail_id
@@ -1260,16 +1267,19 @@ def get_playlist_content_by_report_id(cursor, report_id):
                     JOIN ytp_report_details rd ON rd.video_id = v.video_id
                     WHERE rd.report_id = %s
                     ORDER BY rd.detail_id ASC
-                ''', (report_id, report_id))
+                ''', (report_id, report_id, report_id))
 
                 for row in cursor.fetchall():
-                    vid, base_title, video_url, duration, uploader, uploader_url, view_count, valid, thumbnail_file = row
+                    vid, base_title, video_url, duration, uploader, uploader_url, view_count, valid, description_value, thumbnail_file = row
                     thumbnail_url = f"/static/thumbnail_cache/{thumbnail_file}" if thumbnail_file else None
+                    normalized_description = normalize_description(description_value)
 
                     video_obj = {
                         'video_id': vid,
                         'title': base_title,
                         'display_title': base_title,
+                        'description': normalized_description,
+                        'display_description': normalized_description,
                         'url': video_url,
                         'duration': duration,
                         'uploader': uploader,
@@ -1287,6 +1297,7 @@ def get_playlist_content_by_report_id(cursor, report_id):
                         last_ok = get_last_available_video_report_id(cursor, vid, report_id)
                         if last_ok is not None:
                             recovered_title = get_latest_video_detail(cursor, vid, 'title', last_ok)
+                            recovered_description = get_latest_video_detail(cursor, vid, 'description', last_ok)
                             
                             cursor.execute('''
                                 SELECT t.file_name
@@ -1300,6 +1311,9 @@ def get_playlist_content_by_report_id(cursor, report_id):
                             
                             if recovered_title:
                                 video_obj['display_title'] = recovered_title
+                                video_obj['recovered_from_history'] = True
+                            if recovered_description is not None:
+                                video_obj['display_description'] = normalize_description(recovered_description)
                                 video_obj['recovered_from_history'] = True
                             if rec_thumb and rec_thumb[0]:
                                 video_obj['display_thumbnail_url'] = f"/static/thumbnail_cache/{rec_thumb[0]}"
@@ -1343,10 +1357,13 @@ def get_video_details_by_report_id(cursor, report_id, video_id):
 
         base_title, video_url, duration, uploader, uploader_url, view_count, valid = video_row
         title = get_latest_video_detail(cursor, video_id, 'title', report_id) or base_title
+        description = get_latest_video_detail(cursor, video_id, 'description', report_id)
         views_value = get_latest_video_detail(cursor, video_id, 'views', report_id)
         availability_value = get_latest_video_detail(cursor, video_id, 'availability', report_id)
         thumbnail_id = get_latest_video_detail(cursor, video_id, 'thumbnail', report_id)
         thumbnail_file = get_thumbnail_file_name_by_thumbnail_id(cursor, thumbnail_id) if thumbnail_id else None
+        if description is None:
+            description = ''
 
         if views_value is None:
             views_value = view_count
@@ -1354,18 +1371,23 @@ def get_video_details_by_report_id(cursor, report_id, video_id):
         availability_normalized = normalize_boolean_flag(availability_value, default=valid)
         recovered_from_history = False
         wayback_search_url = None
+        display_description = normalize_description(description)
 
         if availability_normalized == 0:
             recovered_title = None
             last_available_report_id = get_last_available_video_report_id(cursor, video_id, report_id)
             if last_available_report_id is not None:
                 recovered_title = get_latest_video_detail(cursor, video_id, 'title', last_available_report_id)
+                recovered_description = get_latest_video_detail(cursor, video_id, 'description', last_available_report_id)
                 recovered_thumbnail_id = get_latest_video_detail(cursor, video_id, 'thumbnail', last_available_report_id)
                 if recovered_title:
                     title = recovered_title
+                if recovered_description is not None:
+                    display_description = normalize_description(recovered_description)
                 if recovered_thumbnail_id:
                     thumbnail_file = get_thumbnail_file_name_by_thumbnail_id(cursor, recovered_thumbnail_id)
-                recovered_from_history = True
+                if recovered_title or recovered_description is not None or recovered_thumbnail_id:
+                    recovered_from_history = True
             if not recovered_title:
                 wayback_search_url = get_wayback_machine_search_url(video_url)
 
@@ -1373,6 +1395,8 @@ def get_video_details_by_report_id(cursor, report_id, video_id):
             'video_id': video_id,
             'title': title,
             'display_title': title,
+            'description': normalize_description(description),
+            'display_description': display_description,
             'url': video_url,
             'duration': duration,
             'uploader': uploader,
@@ -1388,6 +1412,25 @@ def get_video_details_by_report_id(cursor, report_id, video_id):
     except Error as e:
         print(f"Error: {e}")
         return None
+
+def get_video_details_for_playlist_report(cursor, playlist_id, report_id, video_id):
+    cursor.execute('''
+        SELECT 1
+        FROM ytp_report_details rd
+        JOIN ytp_reports r ON r.report_id = rd.report_id
+        WHERE r.playlist_id = %s AND rd.report_id = %s AND rd.video_id = %s
+        LIMIT 1
+    ''', (playlist_id, report_id, video_id))
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return get_video_details_by_report_id(cursor, report_id, video_id)
+
+def get_video_details_for_latest_playlist_report(cursor, playlist_id, video_id):
+    latest_report_id = get_latest_report_id_for_playlist(cursor, playlist_id)
+    if latest_report_id is None:
+        return None, None
+    return latest_report_id, get_video_details_for_playlist_report(cursor, playlist_id, latest_report_id, video_id)
 
 def get_video_history_by_video_id(cursor, video_id):
     try:

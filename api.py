@@ -14,10 +14,12 @@ from mySQL_manager import (
     get_all_playlists,
     get_playlist_reports,
     get_playlist_content_by_report_id,
+    get_video_details_for_latest_playlist_report,
+    get_video_details_for_playlist_report,
     add_report,
 )
 from ytdlp_parser import parse_playlist
-from main import load_db_config
+from main import load_db_config, build_video_payload
 
 
 db_config = load_db_config()
@@ -149,14 +151,7 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
                 'current_video_title': current_video_title,
             })
 
-        video_titles = [video.title for video in videos]
-        saved_video_links = [video.url for video in videos]
-        video_durations = [video.duration for video in videos]
-        uploader = [video.uploader for video in videos]
-        uploader_url = [video.uploader_url for video in videos]
-        view_count = [video.view_count for video in videos]
-        isvalid = [video.valid for video in videos]
-        video_thumbnails = [video.thumbnail for video in videos]
+        video_payload = build_video_payload(videos)
 
         report_saved = add_report(
             host,
@@ -164,19 +159,21 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
             password,
             database,
             port,
-            video_titles,
-            saved_video_links,
+            video_payload['video_titles'],
+            video_payload['saved_video_links'],
             playlist_data['playlist_name'],
             normalized_url,
-            video_durations,
-            uploader,
-            uploader_url,
-            view_count,
-            isvalid,
+            video_payload['video_durations'],
+            video_payload['video_descriptions'],
+            video_payload['uploader'],
+            video_payload['uploader_url'],
+            video_payload['view_count'],
+            video_payload['like_count'],
+            video_payload['isvalid'],
             playlist_data.get('description', ''),
             playlist_data.get('playlist_privacy', 'public'),
             playlist_data.get('playlist_thumbnail', None),
-            video_thumbnails,
+            video_payload['video_thumbnails'],
             {},
             playlist_author=playlist_data.get('uploader', None),
             playlist_author_url=playlist_data.get('uploader_url', None),
@@ -191,6 +188,7 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
                     'progress': 100,
                     'completed_at': datetime.now().isoformat()
                 })
+            else:
                 update_processing_status(task_id, {
                     'status': 'error',
                     'message': 'Report was not saved (rejected or failed). Check server logs for details.',
@@ -354,6 +352,60 @@ def read_playlist_report(playlist_id: int, report_id: int):
             raise HTTPException(status_code=404, detail="Playlist snapshot not found")
 
         return snapshot
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+@app.get("/api/playlists/{playlist_id}/latest/videos/{video_id}")
+def read_latest_video_details(playlist_id: int, video_id: int):
+    cursor, conn = create_cursor(host, user, password, database, port)
+    try:
+        if not cursor or not conn:
+            raise HTTPException(status_code=500, detail="Unable to open database connection")
+
+        latest_report_id, video_details = get_video_details_for_latest_playlist_report(cursor, playlist_id, video_id)
+        if latest_report_id is None:
+            raise HTTPException(status_code=404, detail="No reports found for this playlist")
+        if not video_details:
+            raise HTTPException(status_code=404, detail="Video not found in latest report")
+
+        return {
+            "playlist_id": playlist_id,
+            "report_id": latest_report_id,
+            "video": video_details,
+        }
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+@app.get("/api/playlists/{playlist_id}/reports/{report_id}/videos/{video_id}")
+def read_video_details_for_report(playlist_id: int, report_id: int, video_id: int):
+    cursor, conn = create_cursor(host, user, password, database, port)
+    try:
+        if not cursor or not conn:
+            raise HTTPException(status_code=500, detail="Unable to open database connection")
+
+        cursor.execute('''
+            SELECT report_id
+            FROM ytp_reports
+            WHERE playlist_id = %s AND report_id = %s
+            LIMIT 1
+        ''', (playlist_id, report_id))
+        report_exists = cursor.fetchone()
+        if not report_exists:
+            raise HTTPException(status_code=404, detail="Report not found")
+
+        video_details = get_video_details_for_playlist_report(cursor, playlist_id, report_id, video_id)
+        if not video_details:
+            raise HTTPException(status_code=404, detail="Video not found in this report")
+
+        return {
+            "playlist_id": playlist_id,
+            "report_id": report_id,
+            "video": video_details,
+        }
     finally:
         if conn and conn.is_connected():
             cursor.close()

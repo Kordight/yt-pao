@@ -72,7 +72,7 @@ def compose_text_table(playlist_data, videos):
     playlist_rows = list(playlist_data_display.items())
     playlist_table = format_table(playlist_headers, playlist_rows)
 
-    video_headers = ["Lp", "Title", "URL", "Duration", "Uploader", "Uploader URL", "Approximate View Count", "bValid"]
+    video_headers = ["Lp", "Title", "URL", "Duration", "Uploader", "Uploader URL", "Approximate View Count", "Like Count", "bValid"]
     video_rows = []
     for index, video in enumerate(videos):
         try:
@@ -84,6 +84,7 @@ def compose_text_table(playlist_data, videos):
                 getattr(video, 'uploader', 'N/A'),
                 getattr(video, 'uploader_url', 'N/A'),
                 getattr(video, 'view_count', 'N/A'),
+                getattr(video, 'like_count', 'N/A'),
                 getattr(video, 'valid', 'N/A')
             ]
             video_rows.append(video_row)
@@ -92,6 +93,21 @@ def compose_text_table(playlist_data, videos):
 
     video_table = format_table(video_headers, video_rows)
     return playlist_table, video_table
+
+def build_video_payload(videos):
+    return {
+        'video_titles': [getattr(video, 'title', 'N/A') for video in videos],
+        'saved_video_links': [getattr(video, 'url', 'N/A') for video in videos],
+        'video_durations': [getattr(video, 'duration', 0) for video in videos],
+        'video_descriptions': [getattr(video, 'description', '') or '' for video in videos],
+        'uploader': [getattr(video, 'uploader', 'Unknown') for video in videos],
+        'uploader_url': [getattr(video, 'uploader_url', 'Unknown') for video in videos],
+        'view_count': [getattr(video, 'view_count', 0) for video in videos],
+        'like_count': [getattr(video, 'like_count', 0) for video in videos],
+        'isvalid': [getattr(video, 'valid', 1) for video in videos],
+        'video_thumbnails': [getattr(video, 'thumbnail', None) for video in videos],
+    }
+
 def generate_config_file():
     if not os.path.exists('config.yaml'):
             print("Config file not found. Creating a new one with default settings.")
@@ -212,7 +228,7 @@ def main():
             file_path = os.path.join(folder_path, f"{args.listMode}_{date_time}.csv")
             with open(file_path, "w", encoding="utf-8", newline="") as file:
                 writer = csv.writer(file)
-                headers = ["Lp", "Title", "URL", "Duration", "Uploader", "Uploader URL", "Approximate View Count", "bValid"]
+                headers = ["Lp", "Title", "URL", "Duration", "Uploader", "Uploader URL", "Approximate View Count", "Like Count", "bValid"]
                 writer.writerow(headers)
                 
                 for index, video in enumerate(videos):
@@ -225,6 +241,7 @@ def main():
                             getattr(video, 'uploader', 'N/A'), 
                             getattr(video, 'uploader_url', 'N/A'),  
                             getattr(video, 'view_count', 'N/A'), 
+                            getattr(video, 'like_count', 'N/A'),
                             getattr(video, 'valid', 'N/A')
                         ]
                         writer.writerow(video_row)
@@ -285,16 +302,13 @@ def main():
             db_port = int(db_config.get('port', 3306) or 3306)
             create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'], db_port)
             downloaded_thumbnails_cache = {}
-            video_titles = [video.title for video in videos]
-            saved_video_links = [video.url for video in videos]
-            video_durations = [video.duration for video in videos]
-            uploader = [video.uploader for video in videos]
-            uploader_url = [video.uploader_url for video in videos]
-            view_count = [video.view_count for video in videos]
-            isvalid = [video.valid for video in videos]
-            video_thumbnails = [video.thumbnail for video in videos]
+            video_payload = build_video_payload(videos)
             saved = add_report(db_config['host'], db_config['user'], db_config['password'], db_config['database'], db_port,
-                video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails, downloaded_thumbnails_cache, playlist_author=playlist_author, playlist_author_url=playlist_author_url)
+                video_payload['video_titles'], video_payload['saved_video_links'], playlist_name, args.playlistLink,
+                video_payload['video_durations'], video_payload['video_descriptions'], video_payload['uploader'],
+                video_payload['uploader_url'], video_payload['view_count'], video_payload['like_count'], video_payload['isvalid'],
+                playlist_description, playlist_privacy, playlist_thumbnail, video_payload['video_thumbnails'],
+                downloaded_thumbnails_cache, playlist_author=playlist_author, playlist_author_url=playlist_author_url)
             if saved:
                 print("Report saved to MySQL database.")
             else:
