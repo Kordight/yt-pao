@@ -4,7 +4,7 @@ import json
 import sys
 
 class Video:
-    def __init__(self, title, url, duration, uploader, view_count=0, video_uploader_url=None, valid=1, thumbnail_url=None):
+    def __init__(self, title, url, duration, uploader, view_count=0, video_uploader_url=None, valid=1, thumbnail_url=None, description=None):
         self.title = title
         self.url = url
         self.duration = duration
@@ -13,6 +13,7 @@ class Video:
         self.uploader_url = video_uploader_url
         self.valid = valid
         self.thumbnail = thumbnail_url
+        self.description = description
 
     def __eq__(self, other):
         if isinstance(other, Video):
@@ -47,6 +48,7 @@ def get_playlist_content(playlist_link, ydl_opts):
         video_uploader = entry.get('uploader') or entry.get('channel') or 'Unknown'
         video_uploader_url = entry.get('uploader_url') or entry.get('channel_url') or 'Unknown'
         video_view_count = entry.get('view_count') or 0  
+        video_description = entry.get('description') or ''
         
         is_valid = 1
         vt_clean = str(video_title).strip()
@@ -61,7 +63,7 @@ def get_playlist_content(playlist_link, ydl_opts):
         if thumbnails:
             video_best_thumbnail_url = thumbnails[-1].get('url')
 
-        videos.append(Video(video_title, video_url, video_duration, video_uploader, video_view_count, video_uploader_url, is_valid, video_best_thumbnail_url))
+        videos.append(Video(video_title, video_url, video_duration, video_uploader, video_view_count, video_uploader_url, is_valid, video_best_thumbnail_url, video_description))
 
     playlist_data = {
         'playlist_name': playlist_dict.get('title') or 'Unknown Playlist',
@@ -120,12 +122,16 @@ def parse_playlist(url, listMode):
     # SKAN 1: Płaska lista ze wszystkimi metadanymi przez szybkie API
     ydl_opts_all = {
         'quiet': True,
-        'extract_flat': 'in_playlist',
+        'extract_flat': False,
         'dump_single_json': True,
         'skip_download': True,
         'cachedir': False,
         'ignoreerrors': True,
-        'cookiefile': 'cookies.txt'
+        'cookiefile': 'cookies.txt',
+
+        'sleep_interval_requests': 1.5,  
+        'sleep_interval': 5,            
+        'max_sleep_interval': 15,
     }
 
     print("[Parser] Scan 1/2: Downloading structure of the entire playlist (Python API)...")
