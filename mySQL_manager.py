@@ -780,6 +780,7 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 print(f"[Validate] Report {report_id}: repaired {repaired_thumbnails}, skipped {skipped_thumbnails}")
 
             conn.commit()
+            print(f"[Database] Report {report_id} successfully saved to database with {total_videos} videos.")
             return True
     except Error as e:
         print(f"Error: {e}")
