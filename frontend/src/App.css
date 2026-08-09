@@ -919,3 +919,44 @@ input {
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
 }
+
+.yt-timeline__trendChart {
+  overflow: visible !important;
+  min-height: auto !important;
+  padding: 10px 8px; 
+  margin: 0 -8px; 
+}
+
+.yt-timeline__hoverMarker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 9; 
+}
+
+.yt-timeline__hoverDot {
+  width: 8px;
+  height: 8px;
+  background-color: #ff9f0a;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+}
+
+.yt-timeline__hoverLabel {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 6px;
+  background: rgba(255, 159, 10, 0.9);
+  color: #000;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+}

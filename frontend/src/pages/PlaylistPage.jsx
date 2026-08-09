@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { API_BASE_URL, DEFAULT_THUMBNAIL, formatCompactNumber, formatDuration, formatPlaylistDuration, resolveThumbnailSrc } from '../utils/formatters'
 import {
   buildCsvExport,
@@ -25,6 +25,8 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
   const [error, setError] = useState('')
   const [actionStatus, setActionStatus] = useState('')
   const availableExportFormats = ['csv', 'sql', 'txt', 'json', 'html']
+  const [hoveredReportIndex, setHoveredReportIndex] = useState(null)
+  const chartRef = useRef(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -191,6 +193,26 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
     })
   }
 
+  const handleChartMouseMove = (e) => {
+    if (!chartRef.current || reports.length <= 1) return;
+    const rect = chartRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    // Obliczamy procentową pozycję myszki na wykresie (0.0 - 1.0)
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const index = Math.round(percentage * (reports.length - 1));
+    setHoveredReportIndex(index);
+  };
+
+  const handleChartMouseLeave = () => {
+    setHoveredReportIndex(null);
+  };
+
+  const handleChartClick = () => {
+    if (hoveredReportIndex !== null) {
+      setSelectedReportIndex(hoveredReportIndex);
+    }
+  };
+
   const exportCurrentReport = async () => {
     if (!playlistSnapshot) {
       setActionStatus('Load a report snapshot before exporting.')
@@ -301,7 +323,16 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
               <span>Report size trend</span>
               <span>{trendMin} - {trendMax} videos</span>
             </div>
-            <div className="yt-timeline__trendChart" role="img" aria-label="Trend of video counts across reports" style={{ position: 'relative' }}>
+            <div
+              className="yt-timeline__trendChart"
+              role="img"
+              aria-label="Trend of video counts across reports"
+              style={{ position: 'relative', cursor: 'crosshair' }}
+              ref={chartRef}
+              onMouseMove={handleChartMouseMove}
+              onMouseLeave={handleChartMouseLeave}
+              onClick={handleChartClick}
+            >
               <svg className="yt-timeline__trendSvg" viewBox="0 0 100 40" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="trendGradient" x1="0" x2="0" y1="0" y2="1">
@@ -339,14 +370,22 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
                 const yPct = (yValue / 40) * 100;
 
                 return (
-                  <div
-                    className="yt-timeline__activeMarker"
-                    style={{ left: `${xPct}%`, top: `${yPct}%` }}
-                  >
-                    <div className="yt-timeline__activeLabel">
-                      {reportCounts[selectedReportIndex]}
-                    </div>
+                  <div className="yt-timeline__activeMarker" style={{ left: `${xPct}%`, top: `${yPct}%` }}>
+                    <div className="yt-timeline__activeLabel">{reportCounts[selectedReportIndex]}</div>
                     <div className="yt-timeline__activeDot" />
+                  </div>
+                );
+              })()}
+
+              {hoveredReportIndex !== null && hoveredReportIndex !== selectedReportIndex && reports.length > 0 && (() => {
+                const xPct = reports.length === 1 ? 0 : (hoveredReportIndex / (reports.length - 1)) * 100;
+                const yValue = 38 - ((reportCounts[hoveredReportIndex] - trendMin) / trendRange) * 34;
+                const yPct = (yValue / 40) * 100;
+
+                return (
+                  <div className="yt-timeline__hoverMarker" style={{ left: `${xPct}%`, top: `${yPct}%` }}>
+                    <div className="yt-timeline__hoverLabel">{reportCounts[hoveredReportIndex]}</div>
+                    <div className="yt-timeline__hoverDot" />
                   </div>
                 );
               })()}
