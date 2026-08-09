@@ -301,7 +301,7 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
               <span>Report size trend</span>
               <span>{trendMin} - {trendMax} videos</span>
             </div>
-            <div className="yt-timeline__trendChart" role="img" aria-label="Trend of video counts across reports">
+            <div className="yt-timeline__trendChart" role="img" aria-label="Trend of video counts across reports" style={{ position: 'relative' }}>
               <svg className="yt-timeline__trendSvg" viewBox="0 0 100 40" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="trendGradient" x1="0" x2="0" y1="0" y2="1">
@@ -321,7 +321,7 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
                   className="yt-timeline__trendLine"
                   fill="none"
                   stroke="#ff3b30"
-                  strokeWidth="2"
+                  strokeWidth="1"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   vectorEffect="non-scaling-stroke"
@@ -331,19 +331,25 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
                     return `${x},${y}`
                   }).join(' ')}
                 />
-                {reports.length > 0 && (
-                  <circle
-                    className="yt-timeline__trendPoint yt-timeline__trendPoint--active"
-                    cx={reports.length === 1 ? 0 : (selectedReportIndex / (reports.length - 1)) * 100}
-                    cy={38 - ((reportCounts[selectedReportIndex] - trendMin) / trendRange) * 34}
-                    r="1.5"
-                    fill="#fff"
-                    stroke="#ff3b30"
-                    strokeWidth="3"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                )}
               </svg>
+
+              {reports.length > 0 && (() => {
+                const xPct = reports.length === 1 ? 0 : (selectedReportIndex / (reports.length - 1)) * 100;
+                const yValue = 38 - ((reportCounts[selectedReportIndex] - trendMin) / trendRange) * 34;
+                const yPct = (yValue / 40) * 100;
+
+                return (
+                  <div
+                    className="yt-timeline__activeMarker"
+                    style={{ left: `${xPct}%`, top: `${yPct}%` }}
+                  >
+                    <div className="yt-timeline__activeLabel">
+                      {reportCounts[selectedReportIndex]}
+                    </div>
+                    <div className="yt-timeline__activeDot" />
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -393,9 +399,6 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
           </details>
         </div>
 
-        <footer className="yt-detail__footer">
-          <span>YT-PAO version {appVersion || '0.0.0'}</span>
-        </footer>
       </div>
 
       <div className="yt-filters">
