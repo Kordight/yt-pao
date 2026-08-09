@@ -284,42 +284,16 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
         </div>
       </div>
 
-      <div className="yt-timeline">
+<div className="yt-timeline">
         <div className="yt-timeline__header">
           <span>Time machine</span>
           <span>
+            {/* Wskaźnik ładowania podczas przesuwania suwaka */}
+            {isLoadingSnapshot && <span className="yt-spinner">Loading... </span>}
             Report {reports.length > 0 ? selectedReportIndex + 1 : 0}/{reports.length || 0}
             {currentReport?.report_id ? ` • ID ${currentReport.report_id}` : ''}
           </span>
         </div>
-
-        <details className="yt-exportAccordion">
-          <summary className="yt-exportAccordion__summary">Export options</summary>
-          <div className="yt-exportAccordion__content">
-            <div className="yt-exportPanel__options">
-              {availableExportFormats.map((format) => (
-                <label key={format} className={selectedExportFormats.includes(format) ? 'yt-exportPanel__option yt-exportPanel__option--active' : 'yt-exportPanel__option'}>
-                  <input
-                    type="checkbox"
-                    checked={selectedExportFormats.includes(format)}
-                    onChange={() => toggleExportFormat(format)}
-                    disabled={!!activeTask}
-                  />
-                  <span>{format}</span>
-                </label>
-              ))}
-            </div>
-            <button
-              className="yt-runReportButton"
-              style={{ marginTop: '12px' }}
-              type="button"
-              onClick={exportCurrentReport}
-              disabled={isExporting || isLoadingSnapshot || !playlistSnapshot || selectedExportFormats.length === 0}
-            >
-              {isExporting ? 'Exporting...' : 'Export current snapshot'}
-            </button>
-          </div>
-        </details>
 
         {showReportTrend && (
           <div className="yt-timeline__trendCard">
@@ -329,16 +303,30 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
             </div>
             <div className="yt-timeline__trendChart" role="img" aria-label="Trend of video counts across reports">
               <svg className="yt-timeline__trendSvg" viewBox="0 0 100 40" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="trendGradient" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(255, 59, 48, 0.4)" />
+                    <stop offset="100%" stopColor="rgba(255, 59, 48, 0.0)" />
+                  </linearGradient>
+                </defs>
+                <polygon
+                  fill="url(#trendGradient)"
+                  points={`0,40 ${reportCounts.map((count, index) => {
+                    const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * 100
+                    const y = 38 - ((count - trendMin) / trendRange) * 34
+                    return `${x},${y}`
+                  }).join(' ')} 100,40`}
+                />
                 <polyline
                   className="yt-timeline__trendLine"
                   fill="none"
                   stroke="#ff3b30"
-                  strokeWidth="2"
+                  strokeWidth="1"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   points={reportCounts.map((count, index) => {
                     const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * 100
-                    const y = 35 - ((count - trendMin) / trendRange) * 30
+                    const y = 38 - ((count - trendMin) / trendRange) * 34
                     return `${x},${y}`
                   }).join(' ')}
                 />
@@ -346,9 +334,11 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
                   <circle
                     className="yt-timeline__trendPoint yt-timeline__trendPoint--active"
                     cx={reports.length === 1 ? 0 : (selectedReportIndex / (reports.length - 1)) * 100}
-                    cy={35 - ((reportCounts[selectedReportIndex] - trendMin) / trendRange) * 30}
-                    r="2"
+                    cy={38 - ((reportCounts[selectedReportIndex] - trendMin) / trendRange) * 34}
+                    r="1.5"
                     fill="#fff"
+                    stroke="#ff3b30"
+                    strokeWidth="0.5"
                   />
                 )}
               </svg>
@@ -370,6 +360,40 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
           <span>{currentReport?.report_date || ' '}</span>
           <span>{reports[reports.length - 1]?.report_date || ' '}</span>
         </div>
+
+        {/* --- Nowoczesny, oddzielny blok eksportu --- */}
+        <div className="yt-timeline__exportBlock">
+          <details className="yt-exportAccordion">
+            <summary className="yt-exportAccordion__summary">Export snapshot options</summary>
+            <div className="yt-exportAccordion__content">
+              <div className="yt-exportPanel__options">
+                {availableExportFormats.map((format) => (
+                  <label key={format} className={selectedExportFormats.includes(format) ? 'yt-exportPanel__option yt-exportPanel__option--active' : 'yt-exportPanel__option'}>
+                    <input
+                      type="checkbox"
+                      checked={selectedExportFormats.includes(format)}
+                      onChange={() => toggleExportFormat(format)}
+                      disabled={!!activeTask}
+                    />
+                    <span>{format}</span>
+                  </label>
+                ))}
+              </div>
+              <button
+                className="yt-runReportButton"
+                type="button"
+                onClick={exportCurrentReport}
+                disabled={isExporting || isLoadingSnapshot || !playlistSnapshot || selectedExportFormats.length === 0}
+              >
+                {isExporting ? 'Exporting...' : 'Export current snapshot'}
+              </button>
+            </div>
+          </details>
+        </div>
+        
+        <footer className="yt-detail__footer">
+          <span>YT-PAO version {appVersion || '0.0.0'}</span>
+        </footer>
       </div>
 
       <div className="yt-filters">
