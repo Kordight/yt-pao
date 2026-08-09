@@ -942,6 +942,7 @@ input {
 
 .yt-videoControls__search {
   flex: 1 1 250px;
+  max-width: 450px; 
 }
 
 .yt-searchInput {
@@ -953,6 +954,7 @@ input {
   border-radius: 999px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
+  font-size: 0.9rem;
 }
 
 .yt-searchInput:focus {
@@ -968,6 +970,30 @@ input {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  flex: 1 1 auto;
+}
+
+.yt-filter {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #aaaaaa;
+  padding: 9px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.yt-filter:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f1f1;
+}
+
+.yt-filter--active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .yt-videoControls__sort {
@@ -978,15 +1004,31 @@ input {
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #f1f1f1;
-  padding: 10px 16px;
+  padding: 10px 36px 10px 16px; /* Miejsce po prawej na strzałkę */
   border-radius: 999px;
   outline: none;
   cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  
+  appearance: none; 
+  -webkit-appearance: none;
+  
+  background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23aaaaaa%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E');
+  background-repeat: no-repeat;
+  background-position: right 14px top 50%;
+  background-size: 10px auto;
 }
 
 .yt-sortSelect:focus {
   border-color: rgba(255, 255, 255, 0.28);
 }
+
+.yt-sortSelect option {
+  background: #1f1f1f;
+  color: #f1f1f1;
+}
+
 
 .yt-emptyState {
   grid-column: 1 / -1;
