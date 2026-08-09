@@ -683,34 +683,6 @@ input {
   }
 }
 
-.yt-filters {
-  display: flex;
-  gap: 10px;
-  margin-top: 14px;
-  flex-wrap: wrap;
-}
-
-.yt-filter {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #aaaaaa;
-  padding: 8px 18px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.yt-filter:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f1f1f1;
-}
-
-.yt-filter--active {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.35);
-}
-
 .yt-timeline__range {
   -webkit-appearance: none;
   width: 100%;
@@ -954,4 +926,85 @@ input {
   white-space: nowrap;
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+.yt-videoControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.yt-videoControls__search {
+  flex: 1 1 250px;
+}
+
+.yt-searchInput {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f1f1;
+  padding: 10px 16px;
+  border-radius: 999px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.yt-searchInput:focus {
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+.yt-searchInput::placeholder {
+  color: #7f7f7f;
+}
+
+.yt-videoControls__filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.yt-videoControls__sort {
+  flex: 0 0 auto;
+}
+
+.yt-sortSelect {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f1f1;
+  padding: 10px 16px;
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+
+.yt-sortSelect:focus {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.yt-emptyState {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 16px;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  color: #aaaaaa;
+}
+
+.yt-emptyState p {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.yt-emptyState__sub {
+  margin-top: 10px !important;
+  font-size: 0.9rem !important;
+  color: #7f7f7f;
 }

@@ -16,6 +16,8 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
   const [selectedReportIndex, setSelectedReportIndex] = useState(0)
   const [playlistSnapshot, setPlaylistSnapshot] = useState(null)
   const [videoFilter, setVideoFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState('default')
   const [selectedExportFormats, setSelectedExportFormats] = useState(['csv', 'sql', 'txt', 'json', 'html'])
   const [isLoadingReports, setIsLoadingReports] = useState(true)
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
@@ -139,15 +141,37 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
   const trendMax = reportCounts.length > 0 ? Math.max(...reportCounts) : 0
   const trendRange = Math.max(trendMax - trendMin, 1)
   const videos = playlistSnapshot?.videos || []
-  const filteredVideos = videos.filter((video) => {
-    if (videoFilter === 'available') {
-      return Number(video.valid) === 1
-    }
-    if (videoFilter === 'unavailable') {
-      return Number(video.valid) === 0
-    }
-    return true
-  })
+
+  const filteredAndSortedVideos = videos
+    .filter((video) => {
+      if (videoFilter === 'available' && Number(video.valid) !== 1) return false;
+      if (videoFilter === 'unavailable' && Number(video.valid) !== 0) return false;
+
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const title = (video.display_title || video.title || '').toLowerCase();
+        const author = (video.uploader || '').toLowerCase();
+        if (!title.includes(query) && !author.includes(query)) return false;
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      // 3. Sortowanie
+      if (sortBy === 'title_asc') {
+        return (a.display_title || a.title || '').localeCompare(b.display_title || b.title || '');
+      }
+      if (sortBy === 'title_desc') {
+        return (b.display_title || b.title || '').localeCompare(a.display_title || a.title || '');
+      }
+      if (sortBy === 'views_desc') {
+        return (Number(b.view_count) || 0) - (Number(a.view_count) || 0);
+      }
+      if (sortBy === 'duration_desc') {
+        return (Number(b.duration) || 0) - (Number(a.duration) || 0);
+      }
+      return 0;
+    });
 
   const playlistTitle =
     playlistSnapshot?.playlist_title || selectedPlaylist?.playlist_title || selectedPlaylist?.playlist_name || 'Untitled'
@@ -440,32 +464,54 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
 
       </div>
 
-      <div className="yt-filters">
-        <button className={videoFilter === 'all' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('all')}>
-          All
-        </button>
-        <button className={videoFilter === 'available' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('available')}>
-          Available
-        </button>
-        <button className={videoFilter === 'unavailable' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('unavailable')}>
-          Unavailable
-        </button>
+      <div className="yt-videoControls">
+        <div className="yt-videoControls__search">
+          <input
+            type="text"
+            placeholder="Search videos or authors..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="yt-searchInput"
+          />
+        </div>
+        <div className="yt-videoControls__filters">
+          <button className={videoFilter === 'all' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('all')}>
+            All
+          </button>
+          <button className={videoFilter === 'available' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('available')}>
+            Available
+          </button>
+          <button className={videoFilter === 'unavailable' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('unavailable')}>
+            Unavailable
+          </button>
+        </div>
+        <div className="yt-videoControls__sort">
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="yt-sortSelect">
+            <option value="default">Default order</option>
+            <option value="title_asc">Title (A-Z)</option>
+            <option value="title_desc">Title (Z-A)</option>
+            <option value="views_desc">Most viewed</option>
+            <option value="duration_desc">Longest</option>
+          </select>
+        </div>
       </div>
 
       {(isLoadingReports || isLoadingSnapshot) && <p className="yt-state">Loading playlist report...</p>}
       {!isLoadingReports && !isLoadingSnapshot && error && <p className="yt-state yt-state--error">{error}</p>}
-
+      
       {!isLoadingReports && !isLoadingSnapshot && !error && (
         <section className="yt-videoGrid" aria-label="Videos in playlist">
-          {filteredVideos.length === 0 ? (
-            <p className="yt-state">No videos match the selected filter.</p>
+          {filteredAndSortedVideos.length === 0 ? (
+            <div className="yt-emptyState">
+              <p>No videos found.</p>
+              {searchQuery && <p className="yt-emptyState__sub">Try adjusting your search "<strong>{searchQuery}</strong>" or filters.</p>}
+            </div>
           ) : (
-            filteredVideos.map((video) => {
+            filteredAndSortedVideos.map((video) => {
               const videoThumbnail = resolveThumbnailSrc(video.display_thumbnail_url || video.thumbnail_url)
               const displayTitle = video.display_title || video.title || 'Untitled'
               const isUnavailable = Number(video.valid) === 0
               const waybackSearchUrl = video.wayback_search_url
-
               return (
                 <article
                   className={isUnavailable ? 'yt-videoCard yt-videoCard--unavailable' : 'yt-videoCard'}
@@ -477,13 +523,12 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
                       <span className="yt-videoCard__badge">{formatDuration(video.duration)}</span>
                     </div>
                   </a>
-
                   <div className="yt-videoCard__body">
                     <h2 className="yt-videoCard__title">{displayTitle}</h2>
                     <p className="yt-videoCard__meta">
                       {video.uploader || 'Unknown author'}
-                      {' '}
-                      • {formatCompactNumber(video.view_count ?? 0)} views
+                      {' • '}
+                      {formatCompactNumber(video.view_count ?? 0)} views
                     </p>
                     <p className="yt-videoCard__availability">
                       {isUnavailable ? 'Unavailable' : 'Available'}
