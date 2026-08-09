@@ -16,7 +16,7 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
   const [selectedReportIndex, setSelectedReportIndex] = useState(0)
   const [playlistSnapshot, setPlaylistSnapshot] = useState(null)
   const [videoFilter, setVideoFilter] = useState('all')
-  const [selectedExportFormat, setSelectedExportFormat] = useState('csv')  
+  const [selectedExportFormat, setSelectedExportFormat] = useState('csv')
   const [isLoadingReports, setIsLoadingReports] = useState(true)
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
   const [isRunningReport, setIsRunningReport] = useState(false)
@@ -319,33 +319,23 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
               <span>{trendMin} - {trendMax} videos</span>
             </div>
             <div className="yt-timeline__trendChart" role="img" aria-label="Trend of video counts across reports">
-              <svg className="yt-timeline__trendSvg" viewBox={`0 0 ${Math.max((reports.length - 1) * 48, 240)} 100`} preserveAspectRatio="none">
+              <svg className="yt-timeline__trendSvg" viewBox="0 0 100 100" preserveAspectRatio="none">
                 <polyline
                   className="yt-timeline__trendLine"
                   points={reportCounts.map((count, index) => {
-                    const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * Math.max((reports.length - 1) * 48, 240)
-                    const y = 92 - ((count - trendMin) / trendRange) * 68
+                    const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * 100
+                    const y = 95 - ((count - trendMin) / trendRange) * 90
                     return `${x},${y}`
                   }).join(' ')}
                 />
-                {reportCounts.map((count, index) => {
-                  const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * Math.max((reports.length - 1) * 48, 240)
-                  const y = 92 - ((count - trendMin) / trendRange) * 68
-                  const isActive = index === selectedReportIndex
-                  return (
-                    <g key={`${reports[index]?.report_id ?? index}`}>
-                      <circle
-                        className={isActive ? 'yt-timeline__trendPoint yt-timeline__trendPoint--active' : 'yt-timeline__trendPoint'}
-                        cx={x}
-                        cy={y}
-                        r={isActive ? 4.5 : 3.5}
-                      />
-                      <text className="yt-timeline__trendLabel" x={x} y={y - 8} textAnchor="middle">
-                        {count}
-                      </text>
-                    </g>
-                  )
-                })}
+                {reports.length > 0 && (
+                  <circle
+                    className="yt-timeline__trendPoint yt-timeline__trendPoint--active"
+                    cx={reports.length === 1 ? 0 : (selectedReportIndex / (reports.length - 1)) * 100}
+                    cy={95 - ((reportCounts[selectedReportIndex] - trendMin) / trendRange) * 90}
+                    r="3"
+                  />
+                )}
               </svg>
             </div>
           </div>

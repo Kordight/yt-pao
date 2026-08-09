@@ -715,3 +715,41 @@ input {
   color: #ffffff;
   border-color: rgba(255, 255, 255, 0.35);
 }
+
+.yt-timeline__range {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+  margin: 15px 0;
+}
+
+.yt-timeline__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ff3b30;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.yt-timeline__range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ff3b30;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.yt-timeline__labels {
+  display: flex;
+  justify-content: space-between; 
+  margin-top: 5px;
+  color: #7f7f7f;
+  font-size: 0.84rem;
+}
