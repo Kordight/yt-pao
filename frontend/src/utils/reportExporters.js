@@ -333,7 +333,7 @@ export function buildHtmlExport(snapshot) {
           </tbody>
         </table>
         <footer class="report-footer">
-          <span>YT-PAO version ${version}</span>
+          <span>Thank you for using <a href="https://github.com/Kordight/yt-pao">YT-PAO</a>. | YT-PAO version ${version}</span>
         </footer>
       </div>
     </section>
