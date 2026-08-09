@@ -16,7 +16,7 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
   const [selectedReportIndex, setSelectedReportIndex] = useState(0)
   const [playlistSnapshot, setPlaylistSnapshot] = useState(null)
   const [videoFilter, setVideoFilter] = useState('all')
-  const [selectedExportFormat, setSelectedExportFormat] = useState('csv')
+  const [selectedExportFormats, setSelectedExportFormats] = useState(['csv', 'sql', 'txt', 'json', 'html'])
   const [isLoadingReports, setIsLoadingReports] = useState(true)
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
   const [isRunningReport, setIsRunningReport] = useState(false)
@@ -208,15 +208,19 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
       const exportDate = snapshot.report_date || new Date().toISOString().replace(/[:.]/g, '-')
       const fileBaseName = getExportFileName(snapshot.playlist_name || playlistTitle, snapshot.report_id || selectedReportIndex + 1, exportDate)
 
-      if (selectedExportFormat === 'csv') {
+      if (selectedExportFormats.includes('csv')) {
         downloadTextFile(`${fileBaseName}.csv`, buildCsvExport(snapshot), 'text/csv;charset=utf-8')
-      } else if (selectedExportFormat === 'sql') {
+      }
+      if (selectedExportFormats.includes('sql')) {
         downloadTextFile(`${fileBaseName}.sql`, buildSqlExport(snapshot), 'application/sql;charset=utf-8')
-      } else if (selectedExportFormat === 'txt') {
+      }
+      if (selectedExportFormats.includes('txt')) {
         downloadTextFile(`${fileBaseName}.txt`, buildTxtExport(snapshot), 'text/plain;charset=utf-8')
-      } else if (selectedExportFormat === 'json') {
+      }
+      if (selectedExportFormats.includes('json')) {
         downloadTextFile(`${fileBaseName}.json`, buildJsonExport(snapshot), 'application/json;charset=utf-8')
-      } else if (selectedExportFormat === 'html') {
+      }
+      if (selectedExportFormats.includes('html')) {
         downloadTextFile(`${fileBaseName}.html`, buildHtmlExport(snapshot), 'text/html;charset=utf-8')
       }
 
@@ -276,29 +280,6 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
             </button>
           </div>
 
-          <div className="yt-exportMenu" aria-label="Report export">
-            <select
-              className="yt-exportSelect"
-              value={selectedExportFormat}
-              onChange={(e) => setSelectedExportFormat(e.target.value)}
-              disabled={!!activeTask || isLoadingSnapshot || !playlistSnapshot}
-            >
-              <option value="csv">CSV</option>
-              <option value="sql">SQL</option>
-              <option value="txt">TXT</option>
-              <option value="json">JSON</option>
-              <option value="html">HTML</option>
-            </select>
-            <button
-              className="yt-runReportButton"
-              type="button"
-              onClick={exportCurrentReport}
-              disabled={isExporting || isLoadingSnapshot || !playlistSnapshot}
-            >
-              {isExporting ? 'Exporting...' : 'Export'}
-            </button>
-          </div>
-
           {actionStatus && <p className="yt-register__status">{actionStatus}</p>}
         </div>
       </div>
@@ -312,6 +293,34 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
           </span>
         </div>
 
+        <details className="yt-exportAccordion">
+          <summary className="yt-exportAccordion__summary">Export options</summary>
+          <div className="yt-exportAccordion__content">
+            <div className="yt-exportPanel__options">
+              {availableExportFormats.map((format) => (
+                <label key={format} className={selectedExportFormats.includes(format) ? 'yt-exportPanel__option yt-exportPanel__option--active' : 'yt-exportPanel__option'}>
+                  <input
+                    type="checkbox"
+                    checked={selectedExportFormats.includes(format)}
+                    onChange={() => toggleExportFormat(format)}
+                    disabled={!!activeTask}
+                  />
+                  <span>{format}</span>
+                </label>
+              ))}
+            </div>
+            <button
+              className="yt-runReportButton"
+              style={{ marginTop: '12px' }}
+              type="button"
+              onClick={exportCurrentReport}
+              disabled={isExporting || isLoadingSnapshot || !playlistSnapshot || selectedExportFormats.length === 0}
+            >
+              {isExporting ? 'Exporting...' : 'Export current snapshot'}
+            </button>
+          </div>
+        </details>
+
         {showReportTrend && (
           <div className="yt-timeline__trendCard">
             <div className="yt-timeline__trendHeader">
@@ -319,12 +328,17 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
               <span>{trendMin} - {trendMax} videos</span>
             </div>
             <div className="yt-timeline__trendChart" role="img" aria-label="Trend of video counts across reports">
-              <svg className="yt-timeline__trendSvg" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <svg className="yt-timeline__trendSvg" viewBox="0 0 100 40" preserveAspectRatio="none">
                 <polyline
                   className="yt-timeline__trendLine"
+                  fill="none"
+                  stroke="#ff3b30"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   points={reportCounts.map((count, index) => {
                     const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * 100
-                    const y = 95 - ((count - trendMin) / trendRange) * 90
+                    const y = 35 - ((count - trendMin) / trendRange) * 30
                     return `${x},${y}`
                   }).join(' ')}
                 />
@@ -332,8 +346,9 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
                   <circle
                     className="yt-timeline__trendPoint yt-timeline__trendPoint--active"
                     cx={reports.length === 1 ? 0 : (selectedReportIndex / (reports.length - 1)) * 100}
-                    cy={95 - ((reportCounts[selectedReportIndex] - trendMin) / trendRange) * 90}
-                    r="3"
+                    cy={35 - ((reportCounts[selectedReportIndex] - trendMin) / trendRange) * 30}
+                    r="2"
+                    fill="#fff"
                   />
                 )}
               </svg>
@@ -350,16 +365,11 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
           onChange={(event) => setSelectedReportIndex(Number(event.target.value))}
           disabled={reports.length <= 1}
         />
-
         <div className="yt-timeline__labels">
-          <span>{reports[0]?.report_date || '—'}</span>
-          <span>{currentReport?.report_date || '—'}</span>
-          <span>{reports[reports.length - 1]?.report_date || '—'}</span>
+          <span>{reports[0]?.report_date || ' '}</span>
+          <span>{currentReport?.report_date || ' '}</span>
+          <span>{reports[reports.length - 1]?.report_date || ' '}</span>
         </div>
-
-        <footer className="yt-detail__footer">
-          <span>YT-PAO version {appVersion || '0.0.0'}</span>
-        </footer>
       </div>
 
       <div className="yt-filters">
@@ -425,7 +435,11 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
           )}
         </section>
       )}
+      <footer className="yt-detail__footer">
+        <span>YT-PAO version {appVersion || '0.0.0'}</span>
+      </footer>
     </section>
+
   )
 }
 
