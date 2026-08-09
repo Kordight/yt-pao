@@ -262,12 +262,12 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
 
           <div className="yt-detail__links">
             {playlistUrl !== '#' && (
-              <a href={playlistUrl} target="_blank" rel="noreferrer">
+              <a href={playlistUrl} target="_blank" rel="noreferrer" className="yt-runReportButton">
                 Open playlist
               </a>
             )}
             {playlistAuthorUrl !== '#' && (
-              <a href={playlistAuthorUrl} target="_blank" rel="noreferrer">
+              <a href={playlistAuthorUrl} target="_blank" rel="noreferrer" className="yt-runReportButton">
                 Author channel
               </a>
             )}
