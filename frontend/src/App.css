@@ -497,128 +497,25 @@ input {
   margin-top: 16px;
 }
 
-.yt-exportPanel {
-  margin-top: 18px;
-  padding: 14px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.yt-exportPanel__steps {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.yt-exportPanel__step {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #d8d8d8;
-}
-
-.yt-exportPanel__stepIndex {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-  font-weight: 700;
-  flex: 0 0 auto;
-}
-
-.yt-exportPanel__label {
-  margin-bottom: 10px;
-  color: #aaaaaa;
-  font-size: 0.84rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.yt-exportPanel__options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.yt-exportPanel__option {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.18);
-  color: #d8d8d8;
-  cursor: pointer;
-  user-select: none;
-}
-
-.yt-exportPanel__option input {
-  accent-color: #ffffff;
-}
-
-.yt-exportPanel__option--active {
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-}
-
-.yt-exportPanel__button {
-  margin-top: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #f1f1f1;
-  color: #0f0f0f;
-  border-radius: 999px;
-  padding: 12px 16px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.yt-exportPanel__button:hover:not(:disabled) {
-  background: #ffffff;
-}
-
-.yt-exportPanel__button:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-.yt-detail__links a {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 9px 13px;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.yt-detail__links .yt-runReportButton {
-  padding: 9px 13px;
-}
-
 .yt-exportMenu {
   margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
-.yt-exportMenu__toggle {
+.yt-exportSelect {
+  background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
   color: #f1f1f1;
-  border-radius: 999px;
   padding: 10px 14px;
+  border-radius: 999px;
+  outline: none;
   cursor: pointer;
 }
 
-.yt-exportMenu__toggle:hover {
-  background: rgba(255, 255, 255, 0.08);
+.yt-exportSelect:focus {
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 .yt-detail__links a:hover {
