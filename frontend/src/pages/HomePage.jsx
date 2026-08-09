@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { formatCompactNumber, resolveThumbnailSrc } from '../utils/formatters'
 
-function HomePage({ playlists, isLoading, error, onOpenPlaylist, onRegisterPlaylist, registrationStatus }) {
+function HomePage({ playlists, isLoading, error, onOpenPlaylist, onRegisterPlaylist, onDisablePlaylist, registrationStatus }) {
   const [playlistUrl, setPlaylistUrl] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [pendingDeletePlaylistId, setPendingDeletePlaylistId] = useState(null)
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -18,6 +19,22 @@ function HomePage({ playlists, isLoading, error, onOpenPlaylist, onRegisterPlayl
       setPlaylistUrl('')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleDeletePlaylist = async (event, playlistId) => {
+    event.stopPropagation()
+
+    const confirmed = window.confirm('Disable this playlist on the dashboard?')
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setPendingDeletePlaylistId(playlistId)
+      await onDisablePlaylist(playlistId)
+    } finally {
+      setPendingDeletePlaylistId(null)
     }
   }
 
@@ -96,9 +113,15 @@ function HomePage({ playlists, isLoading, error, onOpenPlaylist, onRegisterPlayl
                       )}
                     </div>
 
-                    <span className="yt-card__menu" aria-hidden="true">
-                      ⋮
-                    </span>
+                    <button
+                      className="yt-card__menuButton"
+                      type="button"
+                      onClick={(event) => handleDeletePlaylist(event, playlist.playlist_id)}
+                      disabled={pendingDeletePlaylistId === playlist.playlist_id}
+                      title="Disable playlist"
+                    >
+                      {pendingDeletePlaylistId === playlist.playlist_id ? '...' : 'Disable'}
+                    </button>
                   </div>
                 </button>
               )

@@ -8,6 +8,8 @@ YT-PAO analyzes YouTube playlists and produces reports in multiple formats. It s
 - Produce reports in `cmd`, `txt`, `json`, `csv`, `html` or save directly to a MySQL database.
 - Generate multiple report formats in a single run, for example `mySQL` and `html` together.
 - In the web frontend, export the currently selected MySQL report snapshot to `csv`, `sql`, `txt`, `json`, or `html` without triggering a new backend generation run.
+- The frontend export controls live in a collapsible panel in the playlist timeline so they do not cover the full page.
+- Playlists can be disabled from the dashboard; disabled playlists are hidden and a later CLI/frontend import of the same playlist URL re-enables them.
 - Work modes: `all`, `available`, `unavailable`.
 - CLI utilities for one-off reports and a web interface for browsing playlists and reports.
 
@@ -108,6 +110,8 @@ The playlist report endpoint accepts a JSON body with a `formats` array, for exa
 The web UI exposes the same multi-format selection before starting report generation.
 
 The playlist detail page also includes a local export panel. It uses the currently selected timeline snapshot from MySQL and lets you download the report in `csv`, `sql`, `txt`, `json`, or `html` format. This export is client-side and does not start a new report job.
+
+The dashboard now supports soft-delete by setting a playlist as disabled. This hides the playlist from the main list without removing its history, and re-importing the same playlist URL through the CLI or frontend sets it back to enabled automatically.
 
 Frontend (dev):
 

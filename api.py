@@ -228,6 +228,32 @@ def read_playlists():
             cursor.close()
             conn.close()
 
+
+@app.post("/api/playlists/{playlist_id}/disable")
+def disable_playlist(playlist_id: int):
+    cursor, conn = create_cursor(host, user, password, database, port)
+    try:
+        if not cursor or not conn:
+            raise HTTPException(status_code=500, detail="Unable to open database connection")
+
+        cursor.execute(
+            '''
+            UPDATE ytp_playlists
+            SET disabled = 1
+            WHERE playlist_id = %s
+            ''',
+            (playlist_id,)
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Playlist not found")
+
+        conn.commit()
+        return {"status": "disabled", "playlist_id": playlist_id}
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 @app.get("/api/playlists/{playlist_id}/reports")
 def read_playlist_reports(playlist_id: int):
     cursor, conn = create_cursor(host, user, password, database, port)

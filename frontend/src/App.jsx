@@ -167,6 +167,19 @@ function App() {
     setRegistrationStatus(data.message || 'Playlist registration started. Check back soon.')
   }
 
+  const handleDisablePlaylist = async (playlistId) => {
+    const response = await fetch(`${API_BASE_URL}/api/playlists/${playlistId}/disable`, {
+      method: 'POST',
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(data.detail || `HTTP ${response.status}`)
+    }
+
+    setPlaylists(prev => prev.filter(playlist => playlist.playlist_id !== playlistId))
+  }
+
   const startTaskPolling = (taskId, playlistId = null) => {
     if (taskPollingIntervals[taskId]) {
       return
@@ -270,6 +283,7 @@ function App() {
         error={playlistsError}
         onOpenPlaylist={handleOpenPlaylist}
         onRegisterPlaylist={handleRegisterPlaylist}
+        onDisablePlaylist={handleDisablePlaylist}
         registrationStatus={registrationStatus}
       />
       <ProcessingOverlay activeTasks={Object.values(activeTasks)} />

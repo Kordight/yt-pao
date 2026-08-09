@@ -71,6 +71,7 @@ def create_database(host, user, password, database, port=3306):
                 playlist_id INT AUTO_INCREMENT PRIMARY KEY,
                 playlist_name VARCHAR(255) NOT NULL,
                 playlist_url VARCHAR(255) NOT NULL UNIQUE,
+                disabled BOOLEAN NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             ''')
@@ -247,18 +248,21 @@ def create_database(host, user, password, database, port=3306):
             required_columns = {
                 'playlist_name': "MODIFY COLUMN playlist_name VARCHAR(255) NOT NULL",
                 'playlist_url': "MODIFY COLUMN playlist_url VARCHAR(255) NOT NULL",
+                'disabled': "ADD COLUMN disabled BOOLEAN NOT NULL DEFAULT 0",
                 'playlist_author': "ADD COLUMN playlist_author VARCHAR(255)",
                 'playlist_author_url': "ADD COLUMN playlist_author_url VARCHAR(255)"
             }
             expected_types = {
                 'playlist_name': 'varchar(255)',
                 'playlist_url': 'varchar(255)',
+                'disabled': 'tinyint(1)',
                 'playlist_author': 'varchar(255)',
                 'playlist_author_url': 'varchar(255)'
             }
             expected_nullable = {
                 'playlist_name': False,
                 'playlist_url': False,
+                'disabled': False,
                 'playlist_author': True,
                 'playlist_author_url': True
             }
@@ -709,13 +713,17 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                     cursor.execute('''
                         UPDATE ytp_playlists SET playlist_author_url = %s WHERE playlist_id = %s
                     ''', (playlist_author_url, playlist_id))                      
+
+                cursor.execute('''
+                    UPDATE ytp_playlists SET disabled = 0 WHERE playlist_id = %s
+                ''', (playlist_id,))
                     
                 print(f"[Playlist] Playlist already in database (id: {playlist_id})")
             else:
                 # Add playlist
                 cursor.execute('''
-                INSERT INTO ytp_playlists (playlist_name, playlist_url, playlist_author, playlist_author_url)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO ytp_playlists (playlist_name, playlist_url, playlist_author, playlist_author_url, disabled)
+                VALUES (%s, %s, %s, %s, 0)
                 ''', (playlist_name, playlist_url, playlist_author, playlist_author_url))
                 playlist_id = cursor.lastrowid
 
@@ -809,7 +817,11 @@ def create_cursor(host, user, password, database, port=3306):
 
 def get_all_playlists(cursor):
     try:
-        cursor.execute('SELECT playlist_id, playlist_name, playlist_url, playlist_author, playlist_author_url FROM ytp_playlists')
+        cursor.execute('''
+            SELECT playlist_id, playlist_name, playlist_url, playlist_author, playlist_author_url, disabled
+            FROM ytp_playlists
+            WHERE COALESCE(disabled, 0) = 0
+        ''')
         db_playlists = cursor.fetchall()
         playlists = []
         for row in db_playlists:

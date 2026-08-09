@@ -368,6 +368,26 @@ input {
   opacity: 0.75;
 }
 
+.yt-card__menuButton {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f1f1f1;
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.yt-card__menuButton:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.yt-card__menuButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .yt-detail {
   display: flex;
   flex-direction: column;
@@ -562,6 +582,23 @@ input {
 
 .yt-detail__links .yt-runReportButton {
   padding: 9px 13px;
+}
+
+.yt-exportMenu {
+  margin-top: 18px;
+}
+
+.yt-exportMenu__toggle {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f1f1f1;
+  border-radius: 999px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.yt-exportMenu__toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .yt-detail__links a:hover {

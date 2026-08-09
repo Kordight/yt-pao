@@ -21,6 +21,7 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
   const [isRunningReport, setIsRunningReport] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false)
   const [error, setError] = useState('')
   const [actionStatus, setActionStatus] = useState('')
   const availableExportFormats = ['csv', 'sql', 'txt', 'json', 'html']
@@ -275,40 +276,52 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
             </button>
           </div>
 
-          <div className="yt-exportPanel" aria-label="Report export">
-            <div className="yt-exportPanel__steps">
-              <div className="yt-exportPanel__step">
-                <span className="yt-exportPanel__stepIndex">1</span>
-                <span>Choose a timeline point</span>
-              </div>
-              <div className="yt-exportPanel__step">
-                <span className="yt-exportPanel__stepIndex">2</span>
-                <span>Pick export formats</span>
-              </div>
-              <div className="yt-exportPanel__step">
-                <span className="yt-exportPanel__stepIndex">3</span>
-                <span>Export the current report</span>
-              </div>
-            </div>
-
-            <div className="yt-exportPanel__label">Export current report</div>
-            <div className="yt-exportPanel__options">
-              {availableExportFormats.map((format) => (
-                <label key={format} className={selectedExportFormats.includes(format) ? 'yt-exportPanel__option yt-exportPanel__option--active' : 'yt-exportPanel__option'}>
-                  <input
-                    type="checkbox"
-                    checked={selectedExportFormats.includes(format)}
-                    onChange={() => toggleExportFormat(format)}
-                    disabled={!!activeTask}
-                  />
-                  <span>{format}</span>
-                </label>
-              ))}
-            </div>
-
-            <button className="yt-exportPanel__button" type="button" onClick={exportCurrentReport} disabled={isExporting || isLoadingSnapshot || !playlistSnapshot}>
-              {isExporting ? 'Exporting...' : 'Export current report'}
+          <div className="yt-exportMenu" aria-label="Report export">
+            <button
+              className="yt-exportMenu__toggle"
+              type="button"
+              onClick={() => setIsExportMenuOpen((open) => !open)}
+            >
+              {isExportMenuOpen ? 'Hide export panel' : 'Show export panel'}
             </button>
+
+            {isExportMenuOpen && (
+              <div className="yt-exportPanel">
+                <div className="yt-exportPanel__steps">
+                  <div className="yt-exportPanel__step">
+                    <span className="yt-exportPanel__stepIndex">1</span>
+                    <span>Choose a timeline point</span>
+                  </div>
+                  <div className="yt-exportPanel__step">
+                    <span className="yt-exportPanel__stepIndex">2</span>
+                    <span>Pick export formats</span>
+                  </div>
+                  <div className="yt-exportPanel__step">
+                    <span className="yt-exportPanel__stepIndex">3</span>
+                    <span>Export the current report</span>
+                  </div>
+                </div>
+
+                <div className="yt-exportPanel__label">Export current report</div>
+                <div className="yt-exportPanel__options">
+                  {availableExportFormats.map((format) => (
+                    <label key={format} className={selectedExportFormats.includes(format) ? 'yt-exportPanel__option yt-exportPanel__option--active' : 'yt-exportPanel__option'}>
+                      <input
+                        type="checkbox"
+                        checked={selectedExportFormats.includes(format)}
+                        onChange={() => toggleExportFormat(format)}
+                        disabled={!!activeTask}
+                      />
+                      <span>{format}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <button className="yt-exportPanel__button" type="button" onClick={exportCurrentReport} disabled={isExporting || isLoadingSnapshot || !playlistSnapshot}>
+                  {isExporting ? 'Exporting...' : 'Export current report'}
+                </button>
+              </div>
+            )}
           </div>
 
           {actionStatus && <p className="yt-register__status">{actionStatus}</p>}
