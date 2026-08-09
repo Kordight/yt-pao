@@ -754,8 +754,19 @@ def add_report(host, user, password, database, port, video_titles, saved_video_l
                 if video_result:
                     video_id = video_result[0]
                     cursor.execute('''
-                        UPDATE ytp_videos SET valid = %s WHERE video_id = %s
-                    ''', (normalize_boolean_flag(isvalid_row, default=1), video_id))
+                        UPDATE ytp_videos 
+                        SET valid = %s,
+                            video_duration = CASE WHEN %s > 0 THEN %s ELSE video_duration END,
+                            uploader = CASE WHEN %s NOT IN ('Unknown', 'Unknown author', '') THEN %s ELSE uploader END,
+                            uploader_url = CASE WHEN %s NOT IN ('Unknown', 'Unknown URL', '') THEN %s ELSE uploader_url END
+                        WHERE video_id = %s
+                    ''', (
+                        normalize_boolean_flag(isvalid_row, default=1),
+                        length, length,
+                        uploader_row, uploader_row,
+                        uploader_url_row, uploader_url_row,
+                        video_id
+                    ))
                 else:
                     # Add video
                     cursor.execute('''
@@ -1258,9 +1269,23 @@ def get_playlist_content_by_report_id(cursor, report_id):
 
         if video_ids:
             try:
-                # ZMIANA: Potężne zapytanie wyciągające nazwy plików miniatury bez pętli i bez N+1
                 cursor.execute('''
-                    SELECT v.video_id, v.video_title, v.video_url, v.video_duration, v.uploader, v.uploader_url, v.view_count, v.valid,
+                    SELECT v.video_id, 
+                        COALESCE((
+                            SELECT change_value FROM ytp_video_details d
+                            WHERE d.video_id = v.video_id AND d.change_type = 'title' AND d.report_id <= %s
+                            ORDER BY d.report_id DESC, d.change_id DESC LIMIT 1
+                        ), v.video_title) AS current_title,
+                        v.video_url, 
+                        v.video_duration, 
+                        v.uploader, 
+                        v.uploader_url, 
+                        COALESCE((
+                            SELECT change_value FROM ytp_video_details d
+                            WHERE d.video_id = v.video_id AND d.change_type = 'views' AND d.report_id <= %s
+                            ORDER BY d.report_id DESC, d.change_id DESC LIMIT 1
+                        ), v.view_count) AS current_views,
+                        v.valid,
                         (
                             SELECT t.file_name
                             FROM ytp_video_details d
@@ -1273,7 +1298,7 @@ def get_playlist_content_by_report_id(cursor, report_id):
                     JOIN ytp_report_details rd ON rd.video_id = v.video_id
                     WHERE rd.report_id = %s
                     ORDER BY rd.detail_id ASC
-                ''', (report_id, report_id))
+                ''', (report_id, report_id, report_id, report_id))
 
                 for row in cursor.fetchall():
                     vid, base_title, video_url, duration, uploader, uploader_url, view_count, valid, thumbnail_file = row
