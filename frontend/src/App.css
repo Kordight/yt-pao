@@ -621,6 +621,56 @@ input {
   font-size: 0.95rem;
 }
 
+.yt-timeline__trendCard {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.yt-timeline__trendHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: #d0d0d0;
+  font-size: 0.85rem;
+}
+
+.yt-timeline__trendChart {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  min-height: 110px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.yt-timeline__trendBar {
+  position: relative;
+  flex: 1 0 16px;
+  min-width: 16px;
+  border-radius: 999px 999px 10px 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.yt-timeline__trendBar--active {
+  background: linear-gradient(180deg, rgba(255, 59, 48, 0.95), rgba(255, 59, 48, 0.45));
+  border-color: rgba(255, 59, 48, 0.5);
+}
+
+.yt-timeline__trendValue {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  color: #aaaaaa;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
 .yt-timeline__range {
   width: 100%;
   accent-color: #ff0000;

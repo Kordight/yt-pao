@@ -10,6 +10,7 @@ YT-PAO analyzes YouTube playlists and produces reports in multiple formats. It s
 - In the web frontend, export the currently selected MySQL report snapshot to `csv`, `sql`, `txt`, `json`, or `html` without triggering a new backend generation run.
 - The frontend export controls live in a collapsible panel in the playlist timeline so they do not cover the full page.
 - Playlists can be disabled from the dashboard; disabled playlists are hidden and a later CLI/frontend import of the same playlist URL re-enables them.
+- When a playlist has more than five reports, the timeline shows a compact mini chart of video counts from the first report to the latest one.
 - Work modes: `all`, `available`, `unavailable`.
 - CLI utilities for one-off reports and a web interface for browsing playlists and reports.
 

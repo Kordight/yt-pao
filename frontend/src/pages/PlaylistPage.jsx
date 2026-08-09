@@ -131,6 +131,11 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
   }, [activeTask?.taskId, activeTask?.status])
 
   const currentReport = reports[selectedReportIndex] || reports[reports.length - 1] || null
+  const reportCounts = reports.map((report) => Number(report.video_count ?? 0))
+  const showReportTrend = reports.length > 5 && reportCounts.length > 0
+  const trendMin = reportCounts.length > 0 ? Math.min(...reportCounts) : 0
+  const trendMax = reportCounts.length > 0 ? Math.max(...reportCounts) : 0
+  const trendRange = Math.max(trendMax - trendMin, 1)
   const videos = playlistSnapshot?.videos || []
   const filteredVideos = videos.filter((video) => {
     if (videoFilter === 'available') {
@@ -336,6 +341,31 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
             {currentReport?.report_id ? ` • ID ${currentReport.report_id}` : ''}
           </span>
         </div>
+
+        {showReportTrend && (
+          <div className="yt-timeline__trendCard">
+            <div className="yt-timeline__trendHeader">
+              <span>Report size trend</span>
+              <span>{trendMin} - {trendMax} videos</span>
+            </div>
+            <div className="yt-timeline__trendChart" role="img" aria-label="Trend of video counts across reports">
+              {reportCounts.map((count, index) => {
+                const barHeight = 18 + ((count - trendMin) / trendRange) * 62
+                const isActive = index === selectedReportIndex
+                return (
+                  <div
+                    key={`${reports[index]?.report_id ?? index}`}
+                    className={isActive ? 'yt-timeline__trendBar yt-timeline__trendBar--active' : 'yt-timeline__trendBar'}
+                    style={{ height: `${barHeight}px` }}
+                    title={`Report ${index + 1}: ${count} videos`}
+                  >
+                    <span className="yt-timeline__trendValue">{count}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <input
           className="yt-timeline__range"
