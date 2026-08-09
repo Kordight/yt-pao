@@ -7,6 +7,7 @@ YT-PAO analyzes YouTube playlists and produces reports in multiple formats. It s
 - Analyze playlists and extract titles, URLs, durations, uploaders, view counts, and availability status.
 - Produce reports in `cmd`, `txt`, `json`, `csv`, `html` or save directly to a MySQL database.
 - Generate multiple report formats in a single run, for example `mySQL` and `html` together.
+- In the web frontend, export the currently selected MySQL report snapshot to `csv`, `sql`, `txt`, `json`, or `html` without triggering a new backend generation run.
 - Work modes: `all`, `available`, `unavailable`.
 - CLI utilities for one-off reports and a web interface for browsing playlists and reports.
 
@@ -106,6 +107,8 @@ The playlist report endpoint accepts a JSON body with a `formats` array, for exa
 
 The web UI exposes the same multi-format selection before starting report generation.
 
+The playlist detail page also includes a local export panel. It uses the currently selected timeline snapshot from MySQL and lets you download the report in `csv`, `sql`, `txt`, `json`, or `html` format. This export is client-side and does not start a new report job.
+
 Frontend (dev):
 
 ```bash
@@ -152,8 +155,13 @@ See `.env.example` for environment variable names and defaults.
 - `mySQL_manager.py` — database utilities
 - `frontend/` — React + Vite frontend
 - `web_template/` — HTML templates used by CLI HTML output
+- `frontend/src/utils/reportExporters.js` — client-side export helpers for the selected playlist snapshot
 - `docker-compose.yml`, `Dockerfile`, `frontend/Dockerfile` — docker configuration
 - `requirements.txt` — Python dependencies
+
+## Report styling
+
+The HTML report style now follows the dark, card-based frontend look and is shared between the CLI and the frontend export helper. Both outputs use the same overall visual language so exported HTML looks consistent with the playlist detail page.
 
 ## Comparing Playlists / Detecting Missing Videos
 

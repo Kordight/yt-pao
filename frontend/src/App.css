@@ -457,7 +457,7 @@ input {
   margin-top: 16px;
 }
 
-.yt-formatPicker {
+.yt-exportPanel {
   margin-top: 18px;
   padding: 14px;
   border-radius: 16px;
@@ -465,7 +465,38 @@ input {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.yt-formatPicker__label {
+.yt-exportPanel__steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.yt-exportPanel__step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #d8d8d8;
+}
+
+.yt-exportPanel__stepIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.yt-exportPanel__label {
   margin-bottom: 10px;
   color: #aaaaaa;
   font-size: 0.84rem;
@@ -473,13 +504,13 @@ input {
   text-transform: uppercase;
 }
 
-.yt-formatPicker__options {
+.yt-exportPanel__options {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
 
-.yt-formatPicker__option {
+.yt-exportPanel__option {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -492,14 +523,34 @@ input {
   user-select: none;
 }
 
-.yt-formatPicker__option input {
+.yt-exportPanel__option input {
   accent-color: #ffffff;
 }
 
-.yt-formatPicker__option--active {
+.yt-exportPanel__option--active {
   border-color: rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
+}
+
+.yt-exportPanel__button {
+  margin-top: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #f1f1f1;
+  color: #0f0f0f;
+  border-radius: 999px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.yt-exportPanel__button:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+.yt-exportPanel__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .yt-detail__links a {

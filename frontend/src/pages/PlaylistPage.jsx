@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react'
 import { API_BASE_URL, DEFAULT_THUMBNAIL, formatCompactNumber, formatDuration, formatPlaylistDuration, resolveThumbnailSrc } from '../utils/formatters'
+import {
+  buildCsvExport,
+  buildHtmlExport,
+  buildJsonExport,
+  buildSqlExport,
+  buildTxtExport,
+  downloadTextFile,
+  getExportFileName,
+} from '../utils/reportExporters'
 
 function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null)
@@ -7,13 +16,14 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
   const [selectedReportIndex, setSelectedReportIndex] = useState(0)
   const [playlistSnapshot, setPlaylistSnapshot] = useState(null)
   const [videoFilter, setVideoFilter] = useState('all')
-  const [selectedFormats, setSelectedFormats] = useState(['mySQL'])
+  const [selectedExportFormats, setSelectedExportFormats] = useState(['csv', 'sql', 'txt', 'json', 'html'])
   const [isLoadingReports, setIsLoadingReports] = useState(true)
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
   const [isRunningReport, setIsRunningReport] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [error, setError] = useState('')
   const [actionStatus, setActionStatus] = useState('')
-  const availableFormats = ['mySQL', 'html', 'csv', 'json', 'txt', 'cmd']
+  const availableExportFormats = ['csv', 'sql', 'txt', 'json', 'html']
 
   useEffect(() => {
     const controller = new AbortController()
@@ -148,10 +158,6 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
 
       const response = await fetch(`${API_BASE_URL}/api/playlists/${playlistId}/reports`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ formats: selectedFormats }),
       })
 
       const data = await response.json().catch(() => ({}))
@@ -169,14 +175,57 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
     }
   }
 
-  const toggleFormat = (format) => {
-    setSelectedFormats((currentFormats) => {
+  const toggleExportFormat = (format) => {
+    setSelectedExportFormats((currentFormats) => {
       if (currentFormats.includes(format)) {
         return currentFormats.filter((item) => item !== format)
       }
 
       return [...currentFormats, format]
     })
+  }
+
+  const exportCurrentReport = async () => {
+    if (!playlistSnapshot) {
+      setActionStatus('Load a report snapshot before exporting.')
+      return
+    }
+
+    try {
+      setIsExporting(true)
+      setActionStatus('Exporting current report...')
+
+      const snapshot = playlistSnapshot
+      const exportDate = snapshot.report_date || new Date().toISOString().replace(/[:.]/g, '-')
+      const fileBaseName = getExportFileName(snapshot.playlist_name || playlistTitle, snapshot.report_id || selectedReportIndex + 1, exportDate)
+
+      if (selectedExportFormats.includes('csv')) {
+        downloadTextFile(`${fileBaseName}.csv`, buildCsvExport(snapshot), 'text/csv;charset=utf-8')
+      }
+
+      if (selectedExportFormats.includes('sql')) {
+        downloadTextFile(`${fileBaseName}.sql`, buildSqlExport(snapshot), 'application/sql;charset=utf-8')
+      }
+
+      if (selectedExportFormats.includes('txt')) {
+        downloadTextFile(`${fileBaseName}.txt`, buildTxtExport(snapshot), 'text/plain;charset=utf-8')
+      }
+
+      if (selectedExportFormats.includes('json')) {
+        downloadTextFile(`${fileBaseName}.json`, buildJsonExport(snapshot), 'application/json;charset=utf-8')
+      }
+
+      if (selectedExportFormats.includes('html')) {
+        downloadTextFile(`${fileBaseName}.html`, buildHtmlExport(snapshot), 'text/html;charset=utf-8')
+      }
+
+      setActionStatus('Report exported successfully.')
+    } catch (requestError) {
+      console.error('Error exporting report:', requestError)
+      setActionStatus('Could not export the current report.')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   return (
@@ -226,21 +275,40 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
             </button>
           </div>
 
-          <div className="yt-formatPicker" aria-label="Report formats">
-            <div className="yt-formatPicker__label">Generate formats</div>
-            <div className="yt-formatPicker__options">
-              {availableFormats.map((format) => (
-                <label key={format} className={selectedFormats.includes(format) ? 'yt-formatPicker__option yt-formatPicker__option--active' : 'yt-formatPicker__option'}>
+          <div className="yt-exportPanel" aria-label="Report export">
+            <div className="yt-exportPanel__steps">
+              <div className="yt-exportPanel__step">
+                <span className="yt-exportPanel__stepIndex">1</span>
+                <span>Choose a timeline point</span>
+              </div>
+              <div className="yt-exportPanel__step">
+                <span className="yt-exportPanel__stepIndex">2</span>
+                <span>Pick export formats</span>
+              </div>
+              <div className="yt-exportPanel__step">
+                <span className="yt-exportPanel__stepIndex">3</span>
+                <span>Export the current report</span>
+              </div>
+            </div>
+
+            <div className="yt-exportPanel__label">Export current report</div>
+            <div className="yt-exportPanel__options">
+              {availableExportFormats.map((format) => (
+                <label key={format} className={selectedExportFormats.includes(format) ? 'yt-exportPanel__option yt-exportPanel__option--active' : 'yt-exportPanel__option'}>
                   <input
                     type="checkbox"
-                    checked={selectedFormats.includes(format)}
-                    onChange={() => toggleFormat(format)}
+                    checked={selectedExportFormats.includes(format)}
+                    onChange={() => toggleExportFormat(format)}
                     disabled={!!activeTask}
                   />
                   <span>{format}</span>
                 </label>
               ))}
             </div>
+
+            <button className="yt-exportPanel__button" type="button" onClick={exportCurrentReport} disabled={isExporting || isLoadingSnapshot || !playlistSnapshot}>
+              {isExporting ? 'Exporting...' : 'Export current report'}
+            </button>
           </div>
 
           {actionStatus && <p className="yt-register__status">{actionStatus}</p>}

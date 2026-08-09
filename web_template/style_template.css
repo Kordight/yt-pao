@@ -1,193 +1,133 @@
 body {
-    font-family: 'Segoe UI', 'Trebuchet MS', Arial, sans-serif;
     margin: 0;
-    background: linear-gradient(120deg, #e0e7ff 0%, #f8fafc 100%);
-    color: #232946;
-}
-
-footer {
-    text-align: center;
-    margin-bottom: 25px;
-    color: #6b7280;
+    background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 24%),
+        #0f0f0f;
+    color: #f1f1f1;
+    font-family: Arial, Helvetica, sans-serif;
 }
 
 a {
+    color: #ff6b6b;
     text-decoration: none;
-    color: #3b5bdb;
-    transition: color 0.2s;
-    word-break: break-all;
+    word-break: break-word;
 }
 
 a:hover {
-    color: #232946;
     text-decoration: underline;
 }
 
-a:visited {
-    color: #7c3aed;
+.report-shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px;
 }
 
-.border-box {
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(6px);
-    border-radius: 18px;
-    box-shadow: 0 6px 32px 0 rgba(60, 72, 100, 0.10);
-    max-width: 75vh;
-    margin: 32px auto;
-    padding: 2.5rem 2rem;
-    border: 1px solid #e0e7ff;
+.report-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+    overflow: hidden;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
 }
 
-h1,
-h2 {
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: #232946;
-    margin-bottom: 0.5em;
+.report-hero {
+    padding: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: grid;
+    gap: 10px;
 }
 
-h1 {
-    font-size: 2.1em;
+.report-kicker {
+    margin: 0;
+    color: #aaaaaa;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-size: 12px;
 }
 
-h2 {
-    font-size: 1.3em;
+.report-hero h1 {
+    margin: 0;
+    font-size: clamp(28px, 4vw, 44px);
+    line-height: 1.05;
 }
 
-p {
-    color: #4b5563;
-    line-height: 1.6;
+.report-lead,
+.report-note p,
+.report-note ol {
+    color: #d0d0d0;
+    line-height: 1.55;
+}
+
+.report-body {
+    padding: 24px;
+}
+
+.report-note {
+    padding: 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.report-note ol {
+    margin: 12px 0 0;
+    padding-left: 1.2rem;
 }
 
 table {
     width: 100%;
     margin: 24px 0;
-    border-collapse: separate;
-    border-spacing: 0;
-    background: rgba(245, 247, 255, 0.95);
-    border-radius: 14px;
+    border-collapse: collapse;
     overflow: hidden;
-    box-shadow: 0 2px 12px 0 rgba(96, 131, 197, 0.08);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.18);
 }
 
 table th,
 table td {
-    padding: 16px 18px;
+    padding: 14px 16px;
     text-align: left;
-    font-size: 1em;
+    vertical-align: top;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 table th {
-    background: linear-gradient(90deg, #90a9e0 0%, #a8baf4 50%, #90a9e0 100%);
-    color: #fff;
-    font-weight: 600;
-    border-bottom: 2px solid #6083C5;
-    letter-spacing: 0.5px;
-}
-
-table tr {
-    transition: background 0.2s;
+    background: rgba(255, 255, 255, 0.06);
+    color: #ffffff;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.88rem;
 }
 
 table tr:nth-child(even) td {
-    background-color: #f3f6ff;
+    background: rgba(255, 255, 255, 0.02);
 }
 
-table tr:nth-child(odd) td {
-    background-color: #f8fafc;
-}
-
-table tr:hover td {
-    background-color: #e0e7ff;
-}
-
-table td {
-    border-bottom: 1px solid #e0e7f5;
-}
-
-table th:first-child,
-table td:first-child {
-    width: 32%;
-    font-weight: 500;
-    color: #3b5bdb;
-}
-/*
-table th:not(:first-child),
-table td:not(:first-child) {
-    width: 45%;
-}
-*/
-table a {
-    color: #3b5bdb;
-    text-decoration: underline dotted;
-    transition: color 0.2s;
-}
-
-table a:hover {
-    color: #232946;
-    text-decoration: underline solid;
-}
-
-table a:visited {
-    color: #7c3aed;
-}
-
-table.playlist-overview a,
-table.playlist-overview a:visited,
-table.playlist-overview a:hover {
-    color: #484e69 !important;
+.playlist-overview a,
+.playlist-overview a:hover,
+.playlist-overview a:visited {
+    color: #ff6b6b;
 }
 
 ol {
-    padding-left: 1.2em;
-    margin: 0;
+    padding-left: 1.2rem;
 }
 
-ol li {
-    margin-bottom: 0.5em;
-    font-size: 1.05em;
-    background: rgba(245, 247, 255, 0.7);
-    border-radius: 8px;
-    padding: 0.4em 0.8em;
-    transition: background 0.2s;
-}
+@media (max-width: 720px) {
+    .report-shell {
+        padding: 12px;
+    }
 
-ol li:hover {
-    background: #e0e7ff;
-}
-
-@media (max-width: 800px) {
-    .border-box {
-        max-width: 98vw;
-        padding-top: 1.2rem;
-        padding-bottom: 1.2rem;
-        padding-left: 2rem;
-        margin-left: 0.2rem;
-        overflow-wrap: break-word;
-        word-break: break-word;
+    .report-hero,
+    .report-body {
+        padding: 16px;
     }
 
     table th,
     table td {
-        padding: 10px 6px;
-        font-size: 0.97em;
+        padding: 12px 10px;
     }
-
-    h1 {
-        font-size: 1.3em;
-    }
-
-    h2 {
-        font-size: 1.1em;
-    }
-}
-
-table a:visited {
-    color: #5a4a8c;
-}
-
-table.playlist-overview a,
-table.playlist-overview a:visited {
-    color: #484e69;
-    max-width: 65%;
 }
