@@ -162,6 +162,7 @@ export function buildHtmlExport(snapshot) {
   const playlistUrl = escapeHtml(playlist.playlist_url || '#')
   const playlistDescription = escapeHtml(playlist.playlist_description || '')
   const reportDate = escapeHtml(playlist.report_date || '')
+  const version = escapeHtml(snapshot?.app_version || '0.0.0')
 
   const tableRows = rows.map((row) => {
     const rowTitle = escapeHtml(row?.display_title || row?.title || 'Untitled')
@@ -331,6 +332,9 @@ export function buildHtmlExport(snapshot) {
             ${tableRows || '<tr><td colspan="5">No videos available.</td></tr>'}
           </tbody>
         </table>
+        <footer class="report-footer">
+          <span>YT-PAO version ${version}</span>
+        </footer>
       </div>
     </section>
   </div>

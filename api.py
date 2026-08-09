@@ -19,6 +19,7 @@ from mySQL_manager import (
 from ytdlp_parser import parse_playlist
 from main import load_db_config
 from report_dispatcher import generate_reports_for_formats
+from version_info import get_version_string
 
 
 db_config = load_db_config()
@@ -213,6 +214,11 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="static", check_dir=False), name="static")
+
+
+@app.get("/api/version")
+def read_version():
+    return {"version": get_version_string()}
 
 @app.get("/api/playlists")
 def read_playlists():

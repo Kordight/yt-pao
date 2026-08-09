@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { formatCompactNumber, resolveThumbnailSrc } from '../utils/formatters'
 
 function HomePage({ playlists, isLoading, error, onOpenPlaylist, onRegisterPlaylist, onDisablePlaylist, registrationStatus }) {
+  function HomePage({ playlists, isLoading, error, onOpenPlaylist, onRegisterPlaylist, onDisablePlaylist, appVersion, registrationStatus }) {
   const [playlistUrl, setPlaylistUrl] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pendingDeletePlaylistId, setPendingDeletePlaylistId] = useState(null)
@@ -129,6 +130,10 @@ function HomePage({ playlists, isLoading, error, onOpenPlaylist, onRegisterPlayl
           )}
         </section>
       )}
+
+      <footer className="yt-page__footer">
+        <span>YT-PAO version {appVersion || '0.0.0'}</span>
+      </footer>
     </>
   )
 }

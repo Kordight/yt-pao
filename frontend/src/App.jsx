@@ -58,6 +58,7 @@ function App() {
   const [playlistsError, setPlaylistsError] = useState('')
   const [registrationStatus, setRegistrationStatus] = useState('')
   const [currentPath, setCurrentPath] = useState(getCurrentPath())
+  const [appVersion, setAppVersion] = useState('0.0.0')
   const [activeTasks, setActiveTasks] = useState(() => {
     try {
       const savedTasks = window.localStorage.getItem(ACTIVE_TASKS_STORAGE_KEY)
@@ -83,6 +84,26 @@ function App() {
 
   useEffect(() => {
     const controller = new AbortController()
+
+    async function fetchVersion() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/version`, { signal: controller.signal })
+        if (!response.ok) {
+          return
+        }
+
+        const data = await response.json()
+        if (data?.version) {
+          setAppVersion(data.version)
+        }
+      } catch (requestError) {
+        if (requestError.name !== 'AbortError') {
+          console.error('Error fetching app version:', requestError)
+        }
+      }
+    }
+
+    fetchVersion()
 
     async function fetchPlaylists() {
       try {
@@ -272,6 +293,7 @@ function App() {
         onBack={handleBack}
         activeTask={getTaskByPlaylistId(playlistId)}
         onStartTask={(taskId) => startTaskPolling(taskId, playlistId)}
+        appVersion={appVersion}
       />
       <ProcessingOverlay activeTasks={Object.values(activeTasks)} />
     </main>
@@ -284,6 +306,7 @@ function App() {
         onOpenPlaylist={handleOpenPlaylist}
         onRegisterPlaylist={handleRegisterPlaylist}
         onDisablePlaylist={handleDisablePlaylist}
+        appVersion={appVersion}
         registrationStatus={registrationStatus}
       />
       <ProcessingOverlay activeTasks={Object.values(activeTasks)} />

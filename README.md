@@ -112,6 +112,8 @@ The web UI exposes the same multi-format selection before starting report genera
 
 The playlist detail page also includes a local export panel. It uses the currently selected timeline snapshot from MySQL and lets you download the report in `csv`, `sql`, `txt`, `json`, or `html` format. This export is client-side and does not start a new report job.
 
+The app footer and exported HTML reports display the program version, which is read automatically from Git using `git describe --tags --dirty --always` and falls back to the short commit hash when tags are not available.
+
 The dashboard now supports soft-delete by setting a playlist as disabled. This hides the playlist from the main list without removing its history, and re-importing the same playlist URL through the CLI or frontend sets it back to enabled automatically.
 
 Frontend (dev):

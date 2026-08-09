@@ -10,7 +10,7 @@ import {
   getExportFileName,
 } from '../utils/reportExporters'
 
-function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
+function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion }) {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null)
   const [reports, setReports] = useState([])
   const [selectedReportIndex, setSelectedReportIndex] = useState(0)
@@ -201,7 +201,10 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
       setIsExporting(true)
       setActionStatus('Exporting current report...')
 
-      const snapshot = playlistSnapshot
+      const snapshot = {
+        ...playlistSnapshot,
+        app_version: appVersion,
+      }
       const exportDate = snapshot.report_date || new Date().toISOString().replace(/[:.]/g, '-')
       const fileBaseName = getExportFileName(snapshot.playlist_name || playlistTitle, snapshot.report_id || selectedReportIndex + 1, exportDate)
 
@@ -349,20 +352,34 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
               <span>{trendMin} - {trendMax} videos</span>
             </div>
             <div className="yt-timeline__trendChart" role="img" aria-label="Trend of video counts across reports">
-              {reportCounts.map((count, index) => {
-                const barHeight = 18 + ((count - trendMin) / trendRange) * 62
-                const isActive = index === selectedReportIndex
-                return (
-                  <div
-                    key={`${reports[index]?.report_id ?? index}`}
-                    className={isActive ? 'yt-timeline__trendBar yt-timeline__trendBar--active' : 'yt-timeline__trendBar'}
-                    style={{ height: `${barHeight}px` }}
-                    title={`Report ${index + 1}: ${count} videos`}
-                  >
-                    <span className="yt-timeline__trendValue">{count}</span>
-                  </div>
-                )
-              })}
+              <svg className="yt-timeline__trendSvg" viewBox={`0 0 ${Math.max((reports.length - 1) * 48, 240)} 100`} preserveAspectRatio="none">
+                <polyline
+                  className="yt-timeline__trendLine"
+                  points={reportCounts.map((count, index) => {
+                    const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * Math.max((reports.length - 1) * 48, 240)
+                    const y = 92 - ((count - trendMin) / trendRange) * 68
+                    return `${x},${y}`
+                  }).join(' ')}
+                />
+                {reportCounts.map((count, index) => {
+                  const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * Math.max((reports.length - 1) * 48, 240)
+                  const y = 92 - ((count - trendMin) / trendRange) * 68
+                  const isActive = index === selectedReportIndex
+                  return (
+                    <g key={`${reports[index]?.report_id ?? index}`}>
+                      <circle
+                        className={isActive ? 'yt-timeline__trendPoint yt-timeline__trendPoint--active' : 'yt-timeline__trendPoint'}
+                        cx={x}
+                        cy={y}
+                        r={isActive ? 4.5 : 3.5}
+                      />
+                      <text className="yt-timeline__trendLabel" x={x} y={y - 8} textAnchor="middle">
+                        {count}
+                      </text>
+                    </g>
+                  )
+                })}
+              </svg>
             </div>
           </div>
         )}
@@ -382,6 +399,10 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
           <span>{currentReport?.report_date || '—'}</span>
           <span>{reports[reports.length - 1]?.report_date || '—'}</span>
         </div>
+
+        <footer className="yt-detail__footer">
+          <span>YT-PAO version {appVersion || '0.0.0'}</span>
+        </footer>
       </div>
 
       <div className="yt-filters">
