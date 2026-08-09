@@ -170,6 +170,7 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None, fo
                 'database': database,
                 'port': port,
             },
+            progress_callback=update_report_progress
         )
 
         if task_id:

@@ -145,7 +145,7 @@ def _save_html_report(folder_path, list_mode, date_time, playlist_name, playlist
     return {'status': 'success', 'file_path': file_path, 'latest_path': latest_path}
 
 
-def _save_mysql_report(db_config, playlist_data, videos):
+def _save_mysql_report(db_config, playlist_data, videos, progress_callback=None):
     db_port = int(db_config.get('port', 3306) or 3306)
     create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'], db_port)
 
@@ -181,6 +181,7 @@ def _save_mysql_report(db_config, playlist_data, videos):
         downloaded_thumbnails_cache,
         playlist_author=playlist_data.get('uploader', None),
         playlist_author_url=playlist_data.get('uploader_url', None),
+        progress_callback=progress_callback
     )
 
     if not saved:
@@ -200,6 +201,7 @@ def generate_reports_for_formats(
     db_config=None,
     output_folder=None,
     date_time=None,
+    progress_callback=None
 ):
     normalized_formats = []
     for report_format in formats or []:
