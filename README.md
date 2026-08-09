@@ -6,6 +6,7 @@ YT-PAO analyzes YouTube playlists and produces reports in multiple formats. It s
 
 - Analyze playlists and extract titles, URLs, durations, uploaders, view counts, and availability status.
 - Produce reports in `cmd`, `txt`, `json`, `csv`, `html` or save directly to a MySQL database.
+- Generate multiple report formats in a single run, for example `mySQL` and `html` together.
 - Work modes: `all`, `available`, `unavailable`.
 - CLI utilities for one-off reports and a web interface for browsing playlists and reports.
 
@@ -61,8 +62,18 @@ To bypass this and fetch full playlists (e.g., 1000+ videos), you **must** authe
 CLI (original terminal mode):
 
 ```bash
-python main.py --playlistLink <playlist_link> --resultFormat <cmd|txt|json|csv|html|mySQL> --listMode <all|available|unavailable>
+python main.py --playlistLink <playlist_link> --resultFormats <cmd|txt|json|csv|html|mySQL> [<cmd|txt|json|csv|html|mySQL> ...] --listMode <all|available|unavailable>
 ```
+
+You can pass more than one format in the same invocation:
+
+```bash
+python main.py --playlistLink <playlist_link> --resultFormats mySQL html --listMode all
+```
+
+If you still use the legacy single-format flag, `--resultFormat`, it is treated as a compatibility alias for one format.
+
+When multiple formats are requested, each format is processed independently. A failure in one format does not stop the others, and the CLI prints a per-format result.
 
 Thumbnail repair (repair missing thumbnail files from database):
 
@@ -86,6 +97,14 @@ Web API (development):
 python -m uvicorn api:app --reload --port 8000
 # API examples: http://localhost:8000/api/playlists
 ```
+
+The playlist report endpoint accepts a JSON body with a `formats` array, for example:
+
+```json
+{ "formats": ["mySQL", "html"] }
+```
+
+The web UI exposes the same multi-format selection before starting report generation.
 
 Frontend (dev):
 

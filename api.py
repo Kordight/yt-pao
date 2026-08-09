@@ -3,6 +3,7 @@ import threading
 import time
 from datetime import datetime
 from threading import Lock
+from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -14,10 +15,10 @@ from mySQL_manager import (
     get_all_playlists,
     get_playlist_reports,
     get_playlist_content_by_report_id,
-    add_report,
 )
 from ytdlp_parser import parse_playlist
 from main import load_db_config
+from report_dispatcher import generate_reports_for_formats
 
 
 db_config = load_db_config()
@@ -56,6 +57,10 @@ class PlaylistRegisterRequest(BaseModel):
     playlist_url: str
 
 
+class PlaylistReportRequest(BaseModel):
+    formats: Optional[list[str]] = None
+
+
 def normalize_playlist_url(playlist_url: str):
     pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
     match = re.search(pattern, playlist_url)
@@ -65,7 +70,7 @@ def normalize_playlist_url(playlist_url: str):
     return None
 
 
-def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
+def generate_report_from_playlist_url(playlist_url: str, task_id: str = None, formats: Optional[list[str]] = None):
     try:
         normalized_url = normalize_playlist_url(playlist_url)
         if not normalized_url:
@@ -149,54 +154,43 @@ def generate_report_from_playlist_url(playlist_url: str, task_id: str = None):
                 'current_video_title': current_video_title,
             })
 
-        video_titles = [video.title for video in videos]
-        saved_video_links = [video.url for video in videos]
-        video_durations = [video.duration for video in videos]
-        uploader = [video.uploader for video in videos]
-        uploader_url = [video.uploader_url for video in videos]
-        view_count = [video.view_count for video in videos]
-        isvalid = [video.valid for video in videos]
-        video_thumbnails = [video.thumbnail for video in videos]
-
-        report_saved = add_report(
-            host,
-            user,
-            password,
-            database,
-            port,
-            video_titles,
-            saved_video_links,
-            playlist_data['playlist_name'],
-            normalized_url,
-            video_durations,
-            uploader,
-            uploader_url,
-            view_count,
-            isvalid,
-            playlist_data.get('description', ''),
-            playlist_data.get('playlist_privacy', 'public'),
-            playlist_data.get('playlist_thumbnail', None),
-            video_thumbnails,
-            {},
-            playlist_author=playlist_data.get('uploader', None),
-            playlist_author_url=playlist_data.get('uploader_url', None),
-            progress_callback=update_report_progress,
+        selected_formats = formats or ['mySQL']
+        report_result = generate_reports_for_formats(
+            formats=selected_formats,
+            playlist_data=playlist_data,
+            videos=videos,
+            list_mode='all',
+            playlist_link=normalized_url,
+            calculate_total_duration=lambda payload: payload.get('playlist_duration', ''),
+            db_config={
+                'host': host,
+                'user': user,
+                'password': password,
+                'database': database,
+                'port': port,
+            },
         )
 
         if task_id:
-            if report_saved:
+            task_results = report_result['results']
+            mysql_result = task_results.get('mySQL')
+            if mysql_result and mysql_result.get('status') == 'success':
                 update_processing_status(task_id, {
                     'status': 'completed',
                     'message': 'Report generated successfully',
                     'progress': 100,
-                    'completed_at': datetime.now().isoformat()
+                    'completed_at': datetime.now().isoformat(),
+                    'results': task_results,
+                    'formats': selected_formats,
                 })
             else:
                 update_processing_status(task_id, {
                     'status': 'error',
                     'message': 'Report was not saved (rejected or failed). Check server logs for details.',
                     'progress': 100,
-                    'completed_at': datetime.now().isoformat()
+                    'completed_at': datetime.now().isoformat(),
+                    'results': task_results,
+                    'formats': selected_formats,
                 })
 
     except Exception as e:
@@ -280,7 +274,7 @@ def register_playlist(payload: PlaylistRegisterRequest, background_tasks: Backgr
 
 
 @app.post("/api/playlists/{playlist_id}/reports", status_code=202)
-def run_playlist_report(playlist_id: int, background_tasks: BackgroundTasks):
+def run_playlist_report(playlist_id: int, payload: Optional[PlaylistReportRequest] = None, background_tasks: BackgroundTasks = None):
     cursor, conn = create_cursor(host, user, password, database, port)
     try:
         if not cursor or not conn:
@@ -308,9 +302,10 @@ def run_playlist_report(playlist_id: int, background_tasks: BackgroundTasks):
         })
         
         # Run in a separate thread
+        selected_formats = payload.formats if payload and payload.formats else ['mySQL']
         thread = threading.Thread(
             target=generate_report_from_playlist_url,
-            args=(playlist_url, task_id),
+            args=(playlist_url, task_id, selected_formats),
             daemon=True
         )
         thread.start()
@@ -320,6 +315,7 @@ def run_playlist_report(playlist_id: int, background_tasks: BackgroundTasks):
             "message": "Report generation started. Check back soon for the updated playlist snapshot.",
             "playlist_id": playlist_id,
             "task_id": task_id
+            ,"formats": selected_formats
         }
     finally:
         if conn and conn.is_connected():

@@ -7,11 +7,13 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
   const [selectedReportIndex, setSelectedReportIndex] = useState(0)
   const [playlistSnapshot, setPlaylistSnapshot] = useState(null)
   const [videoFilter, setVideoFilter] = useState('all')
+  const [selectedFormats, setSelectedFormats] = useState(['mySQL'])
   const [isLoadingReports, setIsLoadingReports] = useState(true)
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
   const [isRunningReport, setIsRunningReport] = useState(false)
   const [error, setError] = useState('')
   const [actionStatus, setActionStatus] = useState('')
+  const availableFormats = ['mySQL', 'html', 'csv', 'json', 'txt', 'cmd']
 
   useEffect(() => {
     const controller = new AbortController()
@@ -146,6 +148,10 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
 
       const response = await fetch(`${API_BASE_URL}/api/playlists/${playlistId}/reports`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ formats: selectedFormats }),
       })
 
       const data = await response.json().catch(() => ({}))
@@ -161,6 +167,16 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
       setActionStatus('Could not start report generation.')
       setIsRunningReport(false)
     }
+  }
+
+  const toggleFormat = (format) => {
+    setSelectedFormats((currentFormats) => {
+      if (currentFormats.includes(format)) {
+        return currentFormats.filter((item) => item !== format)
+      }
+
+      return [...currentFormats, format]
+    })
   }
 
   return (
@@ -208,6 +224,23 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
             <button className="yt-runReportButton" type="button" onClick={runReport} disabled={!!activeTask}>
               {activeTask ? 'Running report...' : 'Run report'}
             </button>
+          </div>
+
+          <div className="yt-formatPicker" aria-label="Report formats">
+            <div className="yt-formatPicker__label">Generate formats</div>
+            <div className="yt-formatPicker__options">
+              {availableFormats.map((format) => (
+                <label key={format} className={selectedFormats.includes(format) ? 'yt-formatPicker__option yt-formatPicker__option--active' : 'yt-formatPicker__option'}>
+                  <input
+                    type="checkbox"
+                    checked={selectedFormats.includes(format)}
+                    onChange={() => toggleFormat(format)}
+                    disabled={!!activeTask}
+                  />
+                  <span>{format}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           {actionStatus && <p className="yt-register__status">{actionStatus}</p>}

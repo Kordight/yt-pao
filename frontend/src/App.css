@@ -457,6 +457,51 @@ input {
   margin-top: 16px;
 }
 
+.yt-formatPicker {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.yt-formatPicker__label {
+  margin-bottom: 10px;
+  color: #aaaaaa;
+  font-size: 0.84rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.yt-formatPicker__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.yt-formatPicker__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.18);
+  color: #d8d8d8;
+  cursor: pointer;
+  user-select: none;
+}
+
+.yt-formatPicker__option input {
+  accent-color: #ffffff;
+}
+
+.yt-formatPicker__option--active {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
 .yt-detail__links a {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
