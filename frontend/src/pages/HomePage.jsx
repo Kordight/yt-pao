@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { formatCompactNumber, resolveThumbnailSrc } from '../utils/formatters'
 
-function HomePage({ playlists, isLoading, error, onOpenPlaylist, onRegisterPlaylist, onDisablePlaylist, registrationStatus }) {
-  function HomePage({ playlists, isLoading, error, onOpenPlaylist, onRegisterPlaylist, onDisablePlaylist, appVersion, registrationStatus }) {
+function HomePage({ playlists, isLoading, error, onOpenPlaylist, onRegisterPlaylist, onDisablePlaylist, appVersion, registrationStatus }) {
   const [playlistUrl, setPlaylistUrl] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pendingDeletePlaylistId, setPendingDeletePlaylistId] = useState(null)
