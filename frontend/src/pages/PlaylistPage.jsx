@@ -284,7 +284,7 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
         </div>
       </div>
 
-<div className="yt-timeline">
+      <div className="yt-timeline">
         <div className="yt-timeline__header">
           <span>Time machine</span>
           <span>
@@ -321,9 +321,10 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
                   className="yt-timeline__trendLine"
                   fill="none"
                   stroke="#ff3b30"
-                  strokeWidth="1"
+                  strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
                   points={reportCounts.map((count, index) => {
                     const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * 100
                     const y = 38 - ((count - trendMin) / trendRange) * 34
@@ -338,7 +339,8 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
                     r="1.5"
                     fill="#fff"
                     stroke="#ff3b30"
-                    strokeWidth="0.5"
+                    strokeWidth="3"
+                    vectorEffect="non-scaling-stroke"
                   />
                 )}
               </svg>
@@ -390,7 +392,7 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion 
             </div>
           </details>
         </div>
-        
+
         <footer className="yt-detail__footer">
           <span>YT-PAO version {appVersion || '0.0.0'}</span>
         </footer>

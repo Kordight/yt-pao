@@ -846,3 +846,42 @@ input {
   50% { opacity: 1; }
   100% { opacity: 0.4; }
 }
+
+.yt-exportPanel__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.yt-exportPanel__option input {
+  display: none;
+}
+
+.yt-exportPanel__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #aaaaaa;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.yt-exportPanel__option:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f1f1;
+}
+
+.yt-exportPanel__option--active {
+  background: #ff3b30;
+  border-color: #ff3b30;
+  color: #ffffff;
+}
