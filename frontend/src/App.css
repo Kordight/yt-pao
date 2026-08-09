@@ -557,13 +557,6 @@ input {
   font-size: 0.85rem;
 }
 
-.yt-timeline__trendChart {
-  display: block;
-  min-height: 110px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
 .yt-videoGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -830,7 +823,7 @@ input {
 
 .yt-timeline__trendSvg {
   width: 100%;
-  height: 80px !important; /* Sztywne ograniczenie grubości/wysokości całego wykresu */
+  height: 80px !important;
   display: block;
 }
 
@@ -921,10 +914,12 @@ input {
 }
 
 .yt-timeline__trendChart {
-  overflow: visible !important;
+  position: relative;
+  cursor: crosshair;
+  margin: 16px 0 8px 0 !important; 
+  padding: 0 !important; 
   min-height: auto !important;
-  padding: 10px 8px; 
-  margin: 0 -8px; 
+  overflow: visible !important; 
 }
 
 .yt-timeline__hoverMarker {
