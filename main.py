@@ -1,13 +1,18 @@
 import argparse
-from html import parser
 import re
 import sys
 from ytdlp_parser import parse_playlist, calculate_total_duration
 import os
 from datetime import datetime
+<<<<<<< HEAD
+import yaml
+from mySQL_manager import repair_missing_video_thumbnails_for_report, create_cursor
+from report_dispatcher import generate_reports_for_formats
+=======
 from html_manager import generate_html_list, read_html_template, extract_head_and_body, generate_html_list_invalid_videos
 from mySQL_manager import add_report, create_database, repair_missing_video_thumbnails_for_report, create_cursor
 from config import get_settings
+>>>>>>> origin/main
 
 def process_playlist_URL(playlist_URL):
     pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
@@ -34,8 +39,10 @@ def parse_args():
 
     # Define flags
     parser.add_argument('--playlistLink', type=str, required=False, help="The YouTube playlist link.")
+    parser.add_argument('--resultFormats', nargs='+', required=False, choices=['cmd', 'txt', 'json', 'mySQL', 'csv', 'html'],
+                        help="The report formats. Available options: cmd, txt, json, mySQL, csv, html.")
     parser.add_argument('--resultFormat', type=str, required=False, choices=['cmd', 'txt', 'json', 'mySQL', 'csv', 'html'],
-                        help="The report format. Available options: cmd, txt, json, mySQL, csv, html.")
+                        help="Compatibility alias for a single report format.")
     parser.add_argument('--listMode', type=str, required=False, choices=['all', 'unavailable', 'available'],
                         help="The work mode. Available options: all, unavailable, available.")
     parser.add_argument('--repair-thumbnails', action='store_true', help="Scan and repair missing thumbnail files for a report.")
@@ -46,12 +53,62 @@ def parse_args():
         if args.report_id is None:
             parser.error("--report-id is required with --repair-thumbnails")
     else:
-        if not args.playlistLink or not args.resultFormat or not args.listMode:
-            parser.error("--playlistLink, --resultFormat, and --listMode are required unless using --repair-thumbnails")
+        if not args.playlistLink or not (args.resultFormats or args.resultFormat) or not args.listMode:
+            parser.error("--playlistLink, --resultFormats/--resultFormat, and --listMode are required unless using --repair-thumbnails")
     
     # Return parsed arguments
     return args
 
+<<<<<<< HEAD
+def generate_config_file():
+    if not os.path.exists('config.yaml'):
+            print("Config file not found. Creating a new one with default settings.")
+            config = {
+        'database': {
+            'host': 'localhost',
+            'user': 'yt-pao',
+            'password': 'password',
+            'database': 'yt_pao_db'
+        }
+        }
+            with open('config.yaml', 'w') as file:
+                yaml.dump(config, file, default_flow_style=False)
+
+def load_db_config():
+    # Load defaults from config file if present, then override with environment variables
+    cfg = {}
+    if os.path.exists('config.yaml'):
+        with open('config.yaml', 'r') as file:
+            loaded = yaml.safe_load(file) or {}
+            cfg = loaded.get('database', {})
+
+    # Environment overrides (allow using external DB or containerized DB)
+    env_host = os.environ.get('DB_HOST')
+    env_port = os.environ.get('DB_PORT')
+    env_user = os.environ.get('DB_USER')
+    env_password = os.environ.get('DB_PASSWORD')
+    env_name = os.environ.get('DB_NAME')
+
+    if env_host:
+        cfg['host'] = env_host
+    if env_port:
+        cfg['port'] = env_port
+    if env_user:
+        cfg['user'] = env_user
+    if env_password:
+        cfg['password'] = env_password
+    if env_name:
+        cfg['database'] = env_name
+
+    # sensible defaults
+    cfg.setdefault('host', 'localhost')
+    cfg.setdefault('user', 'yt-pao')
+    cfg.setdefault('password', 'password')
+    cfg.setdefault('database', 'yt_pao_db')
+
+    return cfg
+
+=======
 def format_table(headers, rows):
     column_widths = [max(len(str(cell)) for cell in col) for col in zip(headers, *rows)]
     header_row = " | ".join(f"{header:{width}}" for header, width in zip(headers, column_widths))
@@ -92,6 +149,7 @@ def compose_text_table(playlist_data, videos):
 
     video_table = format_table(video_headers, video_rows)
     return playlist_table, video_table
+>>>>>>> origin/main
 def main():
     settings = get_settings()
     args = parse_args()
@@ -128,69 +186,37 @@ def main():
     playlist_author = playlist_data.get('uploader', None)
     playlist_author_url = playlist_data.get('uploader_url', None)
     folder_path = f"Output/{playlist_name}_{get_playlist_id(playlist_data['url'])}"
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
     print(f"YouTube playlist link: {args.playlistLink}")
-    print(f"Report format: {args.resultFormat}")
+    selected_formats = args.resultFormats or ([args.resultFormat] if args.resultFormat else [])
+    print(f"Report formats: {', '.join(selected_formats)}")
     print(f"List mode: {args.listMode}")
     if len(videos) == 0:
         print("No videos found in the playlist.")
         sys.exit(1)
-    
-    if args.resultFormat == "cmd":
-        playlist_table, video_table = compose_text_table(playlist_data, videos)
-        print("Playlist Data:\n")
-        print(playlist_table)
-        print("\nVideo Data:\n")
-        print(video_table)
-    elif args.resultFormat == "txt":
-        playlist_table, video_table = compose_text_table(playlist_data, videos)
-        file_path = os.path.join(folder_path, f"{args.listMode}_{date_time}.txt")
-        with open(file_path, "w", encoding="utf-8") as file:
-            file.write(f"Playlist Data:\n\n{playlist_table}\n")
-            file.write(f"\nVideo Data:\n\n{video_table}")
-        print(f"Saved .txt report to: {file_path}")
-    elif args.resultFormat == "json":
-        import json
-        file_path = os.path.join(folder_path, f"{args.listMode}_{date_time}.json")
-        with open(file_path, "w", encoding="utf-8") as file:
-            videos_dict = [video.__dict__ for video in videos]
-            json.dump({"playlist_data": playlist_data, "videos": videos_dict}, file, indent=4)
-        print(f"Saved .json report to: {file_path}")
-    elif args.resultFormat == "csv":
-        if len(videos) > 0:
-            import csv
-            file_path = os.path.join(folder_path, f"{args.listMode}_{date_time}.csv")
-            with open(file_path, "w", encoding="utf-8", newline="") as file:
-                writer = csv.writer(file)
-                headers = ["Lp", "Title", "URL", "Duration", "Uploader", "Uploader URL", "Approximate View Count", "bValid"]
-                writer.writerow(headers)
-                
-                for index, video in enumerate(videos):
-                    try:
-                        video_row = [
-                            index + 1,
-                            getattr(video, 'title', 'N/A'),  
-                            getattr(video, 'url', 'N/A'),
-                            getattr(video, 'duration', 'N/A'), 
-                            getattr(video, 'uploader', 'N/A'), 
-                            getattr(video, 'uploader_url', 'N/A'),  
-                            getattr(video, 'view_count', 'N/A'), 
-                            getattr(video, 'valid', 'N/A')
-                        ]
-                        writer.writerow(video_row)
-                    except AttributeError as e:
-                        print(f"Missing attribute in video object: {e}")
-    elif args.resultFormat == "html":
-            with open('web_template/script_head_template.js', 'r', encoding='utf-8') as js_file:
-                js_code = js_file.read()
-            with open('web_template/style_template.css', 'r', encoding='utf-8') as css_file:
-                css_styles = css_file.read()
-            with open('web_template/style_template.css', 'r', encoding='utf-8') as css_file:
-                css_styles = css_file.read()
 
-            import html  # Add import for HTML escaping
+    db_config = load_db_config()
+    report_result = generate_reports_for_formats(
+        formats=selected_formats,
+        playlist_data=playlist_data,
+        videos=videos,
+        list_mode=args.listMode,
+        playlist_link=args.playlistLink,
+        calculate_total_duration=calculate_total_duration,
+        db_config=db_config,
+        output_folder=folder_path,
+        date_time=date_time,
+    )
 
+<<<<<<< HEAD
+    for report_format, result in report_result['results'].items():
+        if result.get('status') == 'success':
+            if report_format == 'cmd':
+                print("Playlist Data:\n")
+                print(result['playlist_table'])
+                print("\nVideo Data:\n")
+                print(result['video_table'])
+            elif report_format == 'mySQL':
+=======
             if args.listMode == "unavailable":
                 html_list = generate_html_list_invalid_videos(videos, playlist_name, args.playlistLink)
                 html_template_path = 'web_template/html_template_backup_removed_report.html'
@@ -245,9 +271,12 @@ def main():
             saved = add_report(settings.db_host, settings.db_user, settings.db_password, settings.db_name, settings.db_port,
                 video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails, downloaded_thumbnails_cache, playlist_author=playlist_author, playlist_author_url=playlist_author_url)
             if saved:
+>>>>>>> origin/main
                 print("Report saved to MySQL database.")
             else:
-                print("Report was not saved to MySQL database.")
+                print(f"Saved .{report_format} report to: {result.get('file_path')}")
+        else:
+            print(f"Failed to generate {report_format} report: {result.get('error')}", file=sys.stderr)
 
 if __name__ == "__main__":
     main()

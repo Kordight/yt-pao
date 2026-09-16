@@ -1,17 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { API_BASE_URL, DEFAULT_THUMBNAIL, formatCompactNumber, formatDuration, formatPlaylistDuration, resolveThumbnailSrc } from '../utils/formatters'
+import {
+  buildCsvExport,
+  buildHtmlExport,
+  buildJsonExport,
+  buildSqlExport,
+  buildTxtExport,
+  downloadTextFile,
+  getExportFileName,
+} from '../utils/reportExporters'
 
-function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
+function PlaylistPage({ playlistId, onBack, activeTask, onStartTask, appVersion }) {
   const [selectedPlaylist, setSelectedPlaylist] = useState(null)
   const [reports, setReports] = useState([])
   const [selectedReportIndex, setSelectedReportIndex] = useState(0)
   const [playlistSnapshot, setPlaylistSnapshot] = useState(null)
   const [videoFilter, setVideoFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState('default')
+  const [selectedExportFormats, setSelectedExportFormats] = useState(['csv', 'sql', 'txt', 'json', 'html'])
   const [isLoadingReports, setIsLoadingReports] = useState(true)
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
   const [isRunningReport, setIsRunningReport] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false)
   const [error, setError] = useState('')
   const [actionStatus, setActionStatus] = useState('')
+  const availableExportFormats = ['csv', 'sql', 'txt', 'json', 'html']
+  const [hoveredReportIndex, setHoveredReportIndex] = useState(null)
+  const chartRef = useRef(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -118,16 +135,43 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
   }, [activeTask?.taskId, activeTask?.status])
 
   const currentReport = reports[selectedReportIndex] || reports[reports.length - 1] || null
+  const reportCounts = reports.map((report) => Number(report.video_count ?? 0))
+  const showReportTrend = reports.length > 5 && reportCounts.length > 0
+  const trendMin = reportCounts.length > 0 ? Math.min(...reportCounts) : 0
+  const trendMax = reportCounts.length > 0 ? Math.max(...reportCounts) : 0
+  const trendRange = Math.max(trendMax - trendMin, 1)
   const videos = playlistSnapshot?.videos || []
-  const filteredVideos = videos.filter((video) => {
-    if (videoFilter === 'available') {
-      return Number(video.valid) === 1
-    }
-    if (videoFilter === 'unavailable') {
-      return Number(video.valid) === 0
-    }
-    return true
-  })
+
+  const filteredAndSortedVideos = videos
+    .filter((video) => {
+      if (videoFilter === 'available' && Number(video.valid) !== 1) return false;
+      if (videoFilter === 'unavailable' && Number(video.valid) !== 0) return false;
+
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const title = (video.display_title || video.title || '').toLowerCase();
+        const author = (video.uploader || '').toLowerCase();
+        if (!title.includes(query) && !author.includes(query)) return false;
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      // 3. Sortowanie
+      if (sortBy === 'title_asc') {
+        return (a.display_title || a.title || '').localeCompare(b.display_title || b.title || '');
+      }
+      if (sortBy === 'title_desc') {
+        return (b.display_title || b.title || '').localeCompare(a.display_title || a.title || '');
+      }
+      if (sortBy === 'views_desc') {
+        return (Number(b.view_count) || 0) - (Number(a.view_count) || 0);
+      }
+      if (sortBy === 'duration_desc') {
+        return (Number(b.duration) || 0) - (Number(a.duration) || 0);
+      }
+      return 0;
+    });
 
   const playlistTitle =
     playlistSnapshot?.playlist_title || selectedPlaylist?.playlist_title || selectedPlaylist?.playlist_name || 'Untitled'
@@ -160,6 +204,78 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
       console.error('Error starting report generation:', requestError)
       setActionStatus('Could not start report generation.')
       setIsRunningReport(false)
+    }
+  }
+
+  const toggleExportFormat = (format) => {
+    setSelectedExportFormats((currentFormats) => {
+      if (currentFormats.includes(format)) {
+        return currentFormats.filter((item) => item !== format)
+      }
+
+      return [...currentFormats, format]
+    })
+  }
+
+  const handleChartMouseMove = (e) => {
+    if (!chartRef.current || reports.length <= 1) return;
+    const rect = chartRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    // Obliczamy procentową pozycję myszki na wykresie (0.0 - 1.0)
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const index = Math.round(percentage * (reports.length - 1));
+    setHoveredReportIndex(index);
+  };
+
+  const handleChartMouseLeave = () => {
+    setHoveredReportIndex(null);
+  };
+
+  const handleChartClick = () => {
+    if (hoveredReportIndex !== null) {
+      setSelectedReportIndex(hoveredReportIndex);
+    }
+  };
+
+  const exportCurrentReport = async () => {
+    if (!playlistSnapshot) {
+      setActionStatus('Load a report snapshot before exporting.')
+      return
+    }
+
+    try {
+      setIsExporting(true)
+      setActionStatus('Exporting current report...')
+
+      const snapshot = {
+        ...playlistSnapshot,
+        app_version: appVersion,
+      }
+      const exportDate = snapshot.report_date || new Date().toISOString().replace(/[:.]/g, '-')
+      const fileBaseName = getExportFileName(snapshot.playlist_name || playlistTitle, snapshot.report_id || selectedReportIndex + 1, exportDate)
+
+      if (selectedExportFormats.includes('csv')) {
+        downloadTextFile(`${fileBaseName}.csv`, buildCsvExport(snapshot), 'text/csv;charset=utf-8')
+      }
+      if (selectedExportFormats.includes('sql')) {
+        downloadTextFile(`${fileBaseName}.sql`, buildSqlExport(snapshot), 'application/sql;charset=utf-8')
+      }
+      if (selectedExportFormats.includes('txt')) {
+        downloadTextFile(`${fileBaseName}.txt`, buildTxtExport(snapshot), 'text/plain;charset=utf-8')
+      }
+      if (selectedExportFormats.includes('json')) {
+        downloadTextFile(`${fileBaseName}.json`, buildJsonExport(snapshot), 'application/json;charset=utf-8')
+      }
+      if (selectedExportFormats.includes('html')) {
+        downloadTextFile(`${fileBaseName}.html`, buildHtmlExport(snapshot), 'text/html;charset=utf-8')
+      }
+
+      setActionStatus('Report exported successfully.')
+    } catch (requestError) {
+      console.error('Error exporting report:', requestError)
+      setActionStatus('Could not export the current report.')
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -196,12 +312,12 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
 
           <div className="yt-detail__links">
             {playlistUrl !== '#' && (
-              <a href={playlistUrl} target="_blank" rel="noreferrer">
+              <a href={playlistUrl} target="_blank" rel="noreferrer" className="yt-runReportButton">
                 Open playlist
               </a>
             )}
             {playlistAuthorUrl !== '#' && (
-              <a href={playlistAuthorUrl} target="_blank" rel="noreferrer">
+              <a href={playlistAuthorUrl} target="_blank" rel="noreferrer" className="yt-runReportButton">
                 Author channel
               </a>
             )}
@@ -218,10 +334,88 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
         <div className="yt-timeline__header">
           <span>Time machine</span>
           <span>
+            {/* Wskaźnik ładowania podczas przesuwania suwaka */}
+            {isLoadingSnapshot && <span className="yt-spinner">Loading... </span>}
             Report {reports.length > 0 ? selectedReportIndex + 1 : 0}/{reports.length || 0}
             {currentReport?.report_id ? ` • ID ${currentReport.report_id}` : ''}
           </span>
         </div>
+
+        {showReportTrend && (
+          <div className="yt-timeline__trendCard">
+            <div className="yt-timeline__trendHeader">
+              <span>Report size trend</span>
+              <span>{trendMin} - {trendMax} videos</span>
+            </div>
+            <div
+              className="yt-timeline__trendChart"
+              role="img"
+              aria-label="Trend of video counts across reports"
+              style={{ position: 'relative', cursor: 'crosshair' }}
+              ref={chartRef}
+              onMouseMove={handleChartMouseMove}
+              onMouseLeave={handleChartMouseLeave}
+              onClick={handleChartClick}
+            >
+              <svg className="yt-timeline__trendSvg" viewBox="0 0 100 40" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="trendGradient" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(255, 59, 48, 0.4)" />
+                    <stop offset="100%" stopColor="rgba(255, 59, 48, 0.0)" />
+                  </linearGradient>
+                </defs>
+                <polygon
+                  fill="url(#trendGradient)"
+                  points={`0,40 ${reportCounts.map((count, index) => {
+                    const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * 100
+                    const y = 38 - ((count - trendMin) / trendRange) * 34
+                    return `${x},${y}`
+                  }).join(' ')} 100,40`}
+                />
+                <polyline
+                  className="yt-timeline__trendLine"
+                  fill="none"
+                  stroke="#ff3b30"
+                  strokeWidth="1"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                  points={reportCounts.map((count, index) => {
+                    const x = reports.length === 1 ? 0 : (index / (reports.length - 1)) * 100
+                    const y = 38 - ((count - trendMin) / trendRange) * 34
+                    return `${x},${y}`
+                  }).join(' ')}
+                />
+              </svg>
+
+              {reports.length > 0 && (() => {
+                const xPct = reports.length === 1 ? 0 : (selectedReportIndex / (reports.length - 1)) * 100;
+                const yValue = 38 - ((reportCounts[selectedReportIndex] - trendMin) / trendRange) * 34;
+                const yPct = (yValue / 40) * 100;
+
+                return (
+                  <div className="yt-timeline__activeMarker" style={{ left: `${xPct}%`, top: `${yPct}%` }}>
+                    <div className="yt-timeline__activeLabel">{reportCounts[selectedReportIndex]}</div>
+                    <div className="yt-timeline__activeDot" />
+                  </div>
+                );
+              })()}
+
+              {hoveredReportIndex !== null && hoveredReportIndex !== selectedReportIndex && reports.length > 0 && (() => {
+                const xPct = reports.length === 1 ? 0 : (hoveredReportIndex / (reports.length - 1)) * 100;
+                const yValue = 38 - ((reportCounts[hoveredReportIndex] - trendMin) / trendRange) * 34;
+                const yPct = (yValue / 40) * 100;
+
+                return (
+                  <div className="yt-timeline__hoverMarker" style={{ left: `${xPct}%`, top: `${yPct}%` }}>
+                    <div className="yt-timeline__hoverLabel">{reportCounts[hoveredReportIndex]}</div>
+                    <div className="yt-timeline__hoverDot" />
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
 
         <input
           className="yt-timeline__range"
@@ -232,40 +426,92 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
           onChange={(event) => setSelectedReportIndex(Number(event.target.value))}
           disabled={reports.length <= 1}
         />
-
         <div className="yt-timeline__labels">
-          <span>{reports[0]?.report_date || '—'}</span>
-          <span>{currentReport?.report_date || '—'}</span>
-          <span>{reports[reports.length - 1]?.report_date || '—'}</span>
+          <span>{reports[0]?.report_date || ' '}</span>
+          <span>{currentReport?.report_date || ' '}</span>
+          <span>{reports[reports.length - 1]?.report_date || ' '}</span>
         </div>
+
+        {/* --- Nowoczesny, oddzielny blok eksportu --- */}
+        <div className="yt-timeline__exportBlock">
+          <details className="yt-exportAccordion">
+            <summary className="yt-exportAccordion__summary">Export snapshot options</summary>
+            <div className="yt-exportAccordion__content">
+              <div className="yt-exportPanel__options">
+                {availableExportFormats.map((format) => (
+                  <label key={format} className={selectedExportFormats.includes(format) ? 'yt-exportPanel__option yt-exportPanel__option--active' : 'yt-exportPanel__option'}>
+                    <input
+                      type="checkbox"
+                      checked={selectedExportFormats.includes(format)}
+                      onChange={() => toggleExportFormat(format)}
+                      disabled={!!activeTask}
+                    />
+                    <span>{format}</span>
+                  </label>
+                ))}
+              </div>
+              <button
+                className="yt-runReportButton"
+                type="button"
+                onClick={exportCurrentReport}
+                disabled={isExporting || isLoadingSnapshot || !playlistSnapshot || selectedExportFormats.length === 0}
+              >
+                {isExporting ? 'Exporting...' : 'Export current snapshot'}
+              </button>
+            </div>
+          </details>
+        </div>
+
       </div>
 
-      <div className="yt-filters">
-        <button className={videoFilter === 'all' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('all')}>
-          All
-        </button>
-        <button className={videoFilter === 'available' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('available')}>
-          Available
-        </button>
-        <button className={videoFilter === 'unavailable' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('unavailable')}>
-          Unavailable
-        </button>
+      <div className="yt-videoControls">
+        <div className="yt-videoControls__search">
+          <input
+            type="text"
+            placeholder="Search videos or authors..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="yt-searchInput"
+          />
+        </div>
+        <div className="yt-videoControls__filters">
+          <button className={videoFilter === 'all' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('all')}>
+            All
+          </button>
+          <button className={videoFilter === 'available' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('available')}>
+            Available
+          </button>
+          <button className={videoFilter === 'unavailable' ? 'yt-filter yt-filter--active' : 'yt-filter'} type="button" onClick={() => setVideoFilter('unavailable')}>
+            Unavailable
+          </button>
+        </div>
+        <div className="yt-videoControls__sort">
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="yt-sortSelect">
+            <option value="default">Default order</option>
+            <option value="title_asc">Title (A-Z)</option>
+            <option value="title_desc">Title (Z-A)</option>
+            <option value="views_desc">Most viewed</option>
+            <option value="duration_desc">Longest</option>
+          </select>
+        </div>
       </div>
 
       {(isLoadingReports || isLoadingSnapshot) && <p className="yt-state">Loading playlist report...</p>}
       {!isLoadingReports && !isLoadingSnapshot && error && <p className="yt-state yt-state--error">{error}</p>}
-
+      
       {!isLoadingReports && !isLoadingSnapshot && !error && (
         <section className="yt-videoGrid" aria-label="Videos in playlist">
-          {filteredVideos.length === 0 ? (
-            <p className="yt-state">No videos match the selected filter.</p>
+          {filteredAndSortedVideos.length === 0 ? (
+            <div className="yt-emptyState">
+              <p>No videos found.</p>
+              {searchQuery && <p className="yt-emptyState__sub">Try adjusting your search "<strong>{searchQuery}</strong>" or filters.</p>}
+            </div>
           ) : (
-            filteredVideos.map((video) => {
+            filteredAndSortedVideos.map((video) => {
               const videoThumbnail = resolveThumbnailSrc(video.display_thumbnail_url || video.thumbnail_url)
               const displayTitle = video.display_title || video.title || 'Untitled'
               const isUnavailable = Number(video.valid) === 0
               const waybackSearchUrl = video.wayback_search_url
-
               return (
                 <article
                   className={isUnavailable ? 'yt-videoCard yt-videoCard--unavailable' : 'yt-videoCard'}
@@ -277,13 +523,12 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
                       <span className="yt-videoCard__badge">{formatDuration(video.duration)}</span>
                     </div>
                   </a>
-
                   <div className="yt-videoCard__body">
                     <h2 className="yt-videoCard__title">{displayTitle}</h2>
                     <p className="yt-videoCard__meta">
                       {video.uploader || 'Unknown author'}
-                      {' '}
-                      • {formatCompactNumber(video.view_count ?? 0)} views
+                      {' • '}
+                      {formatCompactNumber(video.view_count ?? 0)} views
                     </p>
                     <p className="yt-videoCard__availability">
                       {isUnavailable ? 'Unavailable' : 'Available'}
@@ -303,7 +548,11 @@ function PlaylistPage({ playlistId, onBack, activeTask, onStartTask }) {
           )}
         </section>
       )}
+      <footer className="yt-detail__footer">
+        <span>YT-PAO version {appVersion || '0.0.0'}</span>
+      </footer>
     </section>
+
   )
 }
 

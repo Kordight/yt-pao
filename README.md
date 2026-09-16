@@ -6,6 +6,11 @@ YT-PAO analyzes YouTube playlists and produces reports in multiple formats. It s
 
 - Analyze playlists and extract titles, URLs, durations, uploaders, view counts, and availability status.
 - Produce reports in `cmd`, `txt`, `json`, `csv`, `html` or save directly to a MySQL database.
+- Generate multiple report formats in a single run, for example `mySQL` and `html` together.
+- In the web frontend, export the currently selected MySQL report snapshot to `csv`, `sql`, `txt`, `json`, or `html` without triggering a new backend generation run.
+- The frontend export controls live in a collapsible panel in the playlist timeline so they do not cover the full page.
+- Playlists can be disabled from the dashboard; disabled playlists are hidden and a later CLI/frontend import of the same playlist URL re-enables them.
+- When a playlist has more than five reports, the timeline shows a compact mini chart of video counts from the first report to the latest one.
 - Work modes: `all`, `available`, `unavailable`.
 - CLI utilities for one-off reports and a web interface for browsing playlists and reports.
 
@@ -61,8 +66,18 @@ To bypass this and fetch full playlists (e.g., 1000+ videos), you **must** authe
 CLI (original terminal mode):
 
 ```bash
-python main.py --playlistLink <playlist_link> --resultFormat <cmd|txt|json|csv|html|mySQL> --listMode <all|available|unavailable>
+python main.py --playlistLink <playlist_link> --resultFormats <cmd|txt|json|csv|html|mySQL> [<cmd|txt|json|csv|html|mySQL> ...] --listMode <all|available|unavailable>
 ```
+
+You can pass more than one format in the same invocation:
+
+```bash
+python main.py --playlistLink <playlist_link> --resultFormats mySQL html --listMode all
+```
+
+If you still use the legacy single-format flag, `--resultFormat`, it is treated as a compatibility alias for one format.
+
+When multiple formats are requested, each format is processed independently. A failure in one format does not stop the others, and the CLI prints a per-format result.
 
 Thumbnail repair (repair missing thumbnail files from database):
 
@@ -86,6 +101,20 @@ Web API (development):
 python -m uvicorn api:app --reload --port 8000
 # API examples: http://localhost:8000/api/playlists
 ```
+
+The playlist report endpoint accepts a JSON body with a `formats` array, for example:
+
+```json
+{ "formats": ["mySQL", "html"] }
+```
+
+The web UI exposes the same multi-format selection before starting report generation.
+
+The playlist detail page also includes a local export panel. It uses the currently selected timeline snapshot from MySQL and lets you download the report in `csv`, `sql`, `txt`, `json`, or `html` format. This export is client-side and does not start a new report job.
+
+The app footer and exported HTML reports display the program version, which is read automatically from Git using `git describe --tags --dirty --always` and falls back to the short commit hash when tags are not available.
+
+The dashboard now supports soft-delete by setting a playlist as disabled. This hides the playlist from the main list without removing its history, and re-importing the same playlist URL through the CLI or frontend sets it back to enabled automatically.
 
 Frontend (dev):
 
@@ -138,8 +167,13 @@ Copy `.env.example` to `.env` and adjust values for your environment.
 - `mySQL_manager.py` — database utilities
 - `frontend/` — React + Vite frontend
 - `web_template/` — HTML templates used by CLI HTML output
+- `frontend/src/utils/reportExporters.js` — client-side export helpers for the selected playlist snapshot
 - `docker-compose.yml`, `Dockerfile`, `frontend/Dockerfile` — docker configuration
 - `requirements.txt` — Python dependencies
+
+## Report styling
+
+The HTML report style now follows the dark, card-based frontend look and is shared between the CLI and the frontend export helper. Both outputs use the same overall visual language so exported HTML looks consistent with the playlist detail page.
 
 ## Comparing Playlists / Detecting Missing Videos
 

@@ -5,9 +5,25 @@ import PlaylistPage from './pages/PlaylistPage'
 import { API_BASE_URL } from './utils/formatters'
 
 const ACTIVE_TASKS_STORAGE_KEY = 'ytp_active_tasks'
+const ACTIVE_TASK_TTL_MS = 2 * 60 * 60 * 1000
 
 function isTerminalTask(task) {
   return task?.status === 'completed' || task?.status === 'error'
+}
+
+function isStaleTask(task) {
+  const createdAt = new Date(task?.created_at || 0).getTime()
+  if (!Number.isFinite(createdAt) || createdAt <= 0) {
+    return true
+  }
+
+  return Date.now() - createdAt > ACTIVE_TASK_TTL_MS
+}
+
+function normalizeStoredTasks(storedTasks) {
+  return Object.fromEntries(
+    Object.entries(storedTasks || {}).filter(([, task]) => task?.taskId && !isTerminalTask(task) && !isStaleTask(task))
+  )
 }
 
 function getCurrentPath() {
@@ -42,13 +58,12 @@ function App() {
   const [playlistsError, setPlaylistsError] = useState('')
   const [registrationStatus, setRegistrationStatus] = useState('')
   const [currentPath, setCurrentPath] = useState(getCurrentPath())
+  const [appVersion, setAppVersion] = useState('0.0.0')
   const [activeTasks, setActiveTasks] = useState(() => {
     try {
       const savedTasks = window.localStorage.getItem(ACTIVE_TASKS_STORAGE_KEY)
       const parsedTasks = savedTasks ? JSON.parse(savedTasks) : {}
-      return Object.fromEntries(
-        Object.entries(parsedTasks).filter(([, task]) => !isTerminalTask(task))
-      )
+      return normalizeStoredTasks(parsedTasks)
     } catch {
       return {}
     }
@@ -57,11 +72,11 @@ function App() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(ACTIVE_TASKS_STORAGE_KEY, JSON.stringify(
-        Object.fromEntries(
-          Object.entries(activeTasks).filter(([, task]) => !isTerminalTask(task))
-        )
-      ))
+      const cleanedTasks = normalizeStoredTasks(activeTasks)
+      window.localStorage.setItem(ACTIVE_TASKS_STORAGE_KEY, JSON.stringify(cleanedTasks))
+      if (Object.keys(cleanedTasks).length !== Object.keys(activeTasks).length) {
+        setActiveTasks(cleanedTasks)
+      }
     } catch {
       // Ignore storage failures in private browsing / blocked storage modes.
     }
@@ -69,6 +84,26 @@ function App() {
 
   useEffect(() => {
     const controller = new AbortController()
+
+    async function fetchVersion() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/version`, { signal: controller.signal })
+        if (!response.ok) {
+          return
+        }
+
+        const data = await response.json()
+        if (data?.version) {
+          setAppVersion(data.version)
+        }
+      } catch (requestError) {
+        if (requestError.name !== 'AbortError') {
+          console.error('Error fetching app version:', requestError)
+        }
+      }
+    }
+
+    fetchVersion()
 
     async function fetchPlaylists() {
       try {
@@ -136,7 +171,7 @@ function App() {
     }
 
     if (data.task_id) {
-      setActiveTasks(prev => ({
+      setActiveTasks(prev => normalizeStoredTasks({
         ...prev,
         [data.task_id]: {
           taskId: data.task_id,
@@ -151,6 +186,19 @@ function App() {
     }
 
     setRegistrationStatus(data.message || 'Playlist registration started. Check back soon.')
+  }
+
+  const handleDisablePlaylist = async (playlistId) => {
+    const response = await fetch(`${API_BASE_URL}/api/playlists/${playlistId}/disable`, {
+      method: 'POST',
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(data.detail || `HTTP ${response.status}`)
+    }
+
+    setPlaylists(prev => prev.filter(playlist => playlist.playlist_id !== playlistId))
   }
 
   const startTaskPolling = (taskId, playlistId = null) => {
@@ -176,15 +224,23 @@ function App() {
         const status = await response.json()
         setActiveTasks(prev => {
           const existingTask = prev[taskId] || {}
+          const mergedTask = {
+            ...existingTask,
+            ...status,
+            playlistId,
+            taskId,
+            created_at: status.created_at || existingTask.created_at || new Date().toISOString(),
+          }
+
+          if (mergedTask.status === 'completed' || mergedTask.status === 'error' || isStaleTask(mergedTask)) {
+            const newTasks = { ...prev }
+            delete newTasks[taskId]
+            return normalizeStoredTasks(newTasks)
+          }
+
           return {
             ...prev,
-            [taskId]: {
-              ...existingTask,
-              ...status,
-              playlistId,
-              taskId,
-              created_at: status.created_at || existingTask.created_at || new Date().toISOString(),
-            }
+            [taskId]: mergedTask,
           }
         })
 
@@ -196,15 +252,11 @@ function App() {
             return newIntervals
           })
 
-          if (status.status === 'completed' && playlistId) {
-            setTimeout(() => {
-              setActiveTasks(prev => {
-                const newTasks = { ...prev }
-                delete newTasks[taskId]
-                return newTasks
-              })
-            }, 3000)
-          }
+          setActiveTasks(prev => {
+            const newTasks = { ...prev }
+            delete newTasks[taskId]
+            return normalizeStoredTasks(newTasks)
+          })
         }
       } catch (error) {
         console.error('Error polling task status:', error)
@@ -222,7 +274,7 @@ function App() {
       if (!task?.taskId) {
         return
       }
-      if (!taskPollingIntervals[task.taskId] && task.status !== 'completed' && task.status !== 'error') {
+      if (!taskPollingIntervals[task.taskId] && task.status !== 'completed' && task.status !== 'error' && !isStaleTask(task)) {
         startTaskPolling(task.taskId, task.playlistId ?? null)
       }
     })
@@ -241,6 +293,7 @@ function App() {
         onBack={handleBack}
         activeTask={getTaskByPlaylistId(playlistId)}
         onStartTask={(taskId) => startTaskPolling(taskId, playlistId)}
+        appVersion={appVersion}
       />
       <ProcessingOverlay activeTasks={Object.values(activeTasks)} />
     </main>
@@ -252,6 +305,8 @@ function App() {
         error={playlistsError}
         onOpenPlaylist={handleOpenPlaylist}
         onRegisterPlaylist={handleRegisterPlaylist}
+        onDisablePlaylist={handleDisablePlaylist}
+        appVersion={appVersion}
         registrationStatus={registrationStatus}
       />
       <ProcessingOverlay activeTasks={Object.values(activeTasks)} />
