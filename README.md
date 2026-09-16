@@ -119,12 +119,17 @@ docker compose up --build backend frontend
 
 ## Configuration
 
-The project supports two configuration sources for the backend database connection:
+The backend configuration is loaded from environment variables (including `.env`) via `pydantic-settings`.
 
-- `config.yaml` (legacy/default) — used when present.
-- Environment variables (recommended for Docker): `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
+Use these variables for database configuration:
 
-See `.env.example` for environment variable names and defaults.
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
+
+Copy `.env.example` to `.env` and adjust values for your environment.
 
 ## File structure (high level)
 
