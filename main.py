@@ -5,9 +5,9 @@ import sys
 from ytdlp_parser import parse_playlist, calculate_total_duration
 import os
 from datetime import datetime
-import yaml
 from html_manager import generate_html_list, read_html_template, extract_head_and_body, generate_html_list_invalid_videos
 from mySQL_manager import add_report, create_database, repair_missing_video_thumbnails_for_report, create_cursor
+from config import get_settings
 
 def process_playlist_URL(playlist_URL):
     pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
@@ -92,66 +92,17 @@ def compose_text_table(playlist_data, videos):
 
     video_table = format_table(video_headers, video_rows)
     return playlist_table, video_table
-def generate_config_file():
-    if not os.path.exists('config.yaml'):
-            print("Config file not found. Creating a new one with default settings.")
-            config = {
-        'database': {
-            'host': 'localhost',
-            'user': 'yt-pao',
-            'password': 'password',
-            'database': 'yt_pao_db'
-        }
-        }
-            with open('config.yaml', 'w') as file:
-                yaml.dump(config, file, default_flow_style=False)
-
-def load_db_config():
-    # Load defaults from config file if present, then override with environment variables
-    cfg = {}
-    if os.path.exists('config.yaml'):
-        with open('config.yaml', 'r') as file:
-            loaded = yaml.safe_load(file) or {}
-            cfg = loaded.get('database', {})
-
-    # Environment overrides (allow using external DB or containerized DB)
-    env_host = os.environ.get('DB_HOST')
-    env_port = os.environ.get('DB_PORT')
-    env_user = os.environ.get('DB_USER')
-    env_password = os.environ.get('DB_PASSWORD')
-    env_name = os.environ.get('DB_NAME')
-
-    if env_host:
-        cfg['host'] = env_host
-    if env_port:
-        cfg['port'] = env_port
-    if env_user:
-        cfg['user'] = env_user
-    if env_password:
-        cfg['password'] = env_password
-    if env_name:
-        cfg['database'] = env_name
-
-    # sensible defaults
-    cfg.setdefault('host', 'localhost')
-    cfg.setdefault('user', 'yt-pao')
-    cfg.setdefault('password', 'password')
-    cfg.setdefault('database', 'yt_pao_db')
-
-    return cfg
-
 def main():
-    generate_config_file()
+    settings = get_settings()
     args = parse_args()
     
     # Handle --repair-thumbnails option
     if args.repair_thumbnails:
-        db_config = load_db_config()
-        db_host = db_config.get('host', 'localhost')
-        db_user = db_config.get('user', 'yt-pao')
-        db_password = db_config.get('password', 'password')
-        db_name = db_config.get('database', 'yt_pao_db')
-        db_port = int(db_config.get('port', 3306) or 3306)
+        db_host = settings.db_host
+        db_user = settings.db_user
+        db_password = settings.db_password
+        db_name = settings.db_name
+        db_port = settings.db_port
         
         cursor, connection = create_cursor(db_host, db_user, db_password, db_name, db_port)
         if not cursor or not connection:
@@ -281,9 +232,7 @@ def main():
             print(f"Saved .html report to: {file_path}")
     
     elif args.resultFormat == "mySQL":
-            db_config = load_db_config()
-            db_port = int(db_config.get('port', 3306) or 3306)
-            create_database(db_config['host'], db_config['user'], db_config['password'], db_config['database'], db_port)
+            create_database(settings.db_host, settings.db_user, settings.db_password, settings.db_name, settings.db_port)
             downloaded_thumbnails_cache = {}
             video_titles = [video.title for video in videos]
             saved_video_links = [video.url for video in videos]
@@ -293,7 +242,7 @@ def main():
             view_count = [video.view_count for video in videos]
             isvalid = [video.valid for video in videos]
             video_thumbnails = [video.thumbnail for video in videos]
-            saved = add_report(db_config['host'], db_config['user'], db_config['password'], db_config['database'], db_port,
+            saved = add_report(settings.db_host, settings.db_user, settings.db_password, settings.db_name, settings.db_port,
                 video_titles, saved_video_links, playlist_name, args.playlistLink, video_durations, uploader, uploader_url,view_count, isvalid, playlist_description, playlist_privacy, playlist_thumbnail, video_thumbnails, downloaded_thumbnails_cache, playlist_author=playlist_author, playlist_author_url=playlist_author_url)
             if saved:
                 print("Report saved to MySQL database.")

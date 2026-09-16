@@ -2,29 +2,27 @@
 
 # Configuration
 PROJECT_DIR="/home/sebastian/yt-pao" # Replace with your path
-CONFIG_YAML="$PROJECT_DIR/config.yaml"
-
-# Check if config exists
-if [ ! -f "$CONFIG_YAML" ]; then
-    echo "Config file $CONFIG_YAML not found!"
-    exit 1
-fi
+ENV_FILE="$PROJECT_DIR/.env"
 
 # Check dependencies
-command -v yq >/dev/null 2>&1 || { echo "yq not found. Install it first."; exit 1; }
 command -v mysqldump >/dev/null 2>&1 || { echo "mysqldump not found. Install it first."; exit 1; }
 
-# Function to read configuration from YAML file
+# Function to read configuration from environment / .env file
 read_config() {
-    DB_HOST=$(yq -r '.database.host' "$CONFIG_YAML")
-    DB_USER=$(yq -r '.database.user' "$CONFIG_YAML")
-    DB_PASSWORD=$(yq -r '.database.password' "$CONFIG_YAML")
-    DB_NAME=$(yq -r '.database.database' "$CONFIG_YAML")
-    DB_PORT=$(yq -r '.database.port // empty' "$CONFIG_YAML")
+    if [ -f "$ENV_FILE" ]; then
+        set -a
+        source "$ENV_FILE"
+        set +a
+    fi
+
+    DB_HOST=${DB_HOST:-localhost}
+    DB_USER=${DB_USER:-yt-pao}
+    DB_PASSWORD=${DB_PASSWORD:-password}
+    DB_NAME=${DB_NAME:-yt_pao_db}
     DB_PORT=${DB_PORT:-3306}
 
     if [[ -z "$DB_HOST" || -z "$DB_USER" || -z "$DB_PASSWORD" || -z "$DB_NAME" ]]; then
-        echo "Error: One or more required database configuration values are missing in $CONFIG_YAML."
+        echo "Error: One or more required database configuration values are missing in environment variables."
         exit 1
     fi
 }
