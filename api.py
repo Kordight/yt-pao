@@ -17,17 +17,21 @@ from mySQL_manager import (
     get_playlist_content_by_report_id,
 )
 from ytdlp_parser import parse_playlist
+<<<<<<< HEAD
 from main import load_db_config
 from report_dispatcher import generate_reports_for_formats
 from version_info import get_version_string
+=======
+from config import get_settings
+>>>>>>> origin/main
 
 
-db_config = load_db_config()
-host = db_config['host']
-user = db_config['user']
-password = db_config['password']
-database = db_config['database']
-port = int(db_config.get('port', 3306) or 3306)
+settings = get_settings()
+host = settings.db_host
+user = settings.db_user
+password = settings.db_password
+database = settings.db_name
+port = settings.db_port
 
 MAX_DB_RETRIES = 30
 DB_RETRY_INTERVAL = 2  # seconds
