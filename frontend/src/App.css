@@ -703,6 +703,7 @@ input {
 
   .yt-videoControls__search {
     max-width: 100%;
+    flex: none;
   }
 
   .yt-sortSelect {
