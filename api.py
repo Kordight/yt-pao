@@ -17,13 +17,9 @@ from mySQL_manager import (
     get_playlist_content_by_report_id,
 )
 from ytdlp_parser import parse_playlist
-<<<<<<< HEAD
-from main import load_db_config
+from config import get_settings
 from report_dispatcher import generate_reports_for_formats
 from version_info import get_version_string
-=======
-from config import get_settings
->>>>>>> origin/main
 
 
 settings = get_settings()
