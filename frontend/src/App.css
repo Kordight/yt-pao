@@ -681,6 +681,20 @@ input {
   .yt-timeline__labels {
     flex-direction: column;
   }
+
+  .yt-register {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .yt-detail__links {
+    flex-direction: column;
+  }
+
+  .yt-runReportButton, .yt-register__button {
+    width: 100%;
+    text-align: center;
+  }
 }
 
 .yt-timeline__range {
@@ -1049,4 +1063,20 @@ input {
   margin-top: 10px !important;
   font-size: 0.9rem !important;
   color: #7f7f7f;
+}
+
+@media (max-width: 720px) {
+  .yt-videoControls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .yt-videoControls__search {
+    max-width: 100%;
+    flex: none;
+  }
+
+  .yt-sortSelect {
+    width: 100%;
+  }
 }
