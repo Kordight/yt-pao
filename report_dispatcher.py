@@ -236,7 +236,7 @@ def generate_reports_for_formats(
             elif report_format == 'mySQL':
                 if db_config is None:
                     raise ValueError('Database configuration is required for mySQL format.')
-                results[report_format] = _save_mysql_report(db_config, playlist_data, videos)
+                results[report_format] = _save_mysql_report(db_config, playlist_data, videos, progress_callback)
         except Exception as error:
             results[report_format] = {'status': 'error', 'error': str(error)}
 
