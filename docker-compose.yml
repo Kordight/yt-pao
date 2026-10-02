@@ -32,6 +32,7 @@ services:
       DB_USER: ${DB_USER:-yt-pao}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       DB_NAME: ${DB_NAME:-yt_pao_db}
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - thumbnails:/app/static/thumbnail_cache
       - ./cookies.txt:/app/cookies.txt

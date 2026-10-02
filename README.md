@@ -135,6 +135,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
+The backend container runs by default as the host user with UID/GID `1000:1000`. This prevents `Permission denied` errors when writing to mounted volumes. Override `UID` and `GID` in `.env` when needed.
+
 - Frontend: http://localhost:3002
 - Backend API: http://localhost:8001
 - The bundled MySQL container is not published on host port 3306 anymore, so it will not clash with a local MySQL install.
@@ -159,6 +161,8 @@ Use these variables for database configuration:
 - `DB_NAME`
 
 Copy `.env.example` to `.env` and adjust values for your environment.
+
+When using Docker, `UID` and `GID` can be set in `.env` to override the default backend container user (`1000:1000`).
 
 ## File structure (high level)
 
