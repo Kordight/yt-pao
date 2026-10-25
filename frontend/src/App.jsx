@@ -74,9 +74,6 @@ function App() {
     try {
       const cleanedTasks = normalizeStoredTasks(activeTasks)
       window.localStorage.setItem(ACTIVE_TASKS_STORAGE_KEY, JSON.stringify(cleanedTasks))
-      if (Object.keys(cleanedTasks).length !== Object.keys(activeTasks).length) {
-        setActiveTasks(cleanedTasks)
-      }
     } catch {
       // Ignore storage failures in private browsing / blocked storage modes.
     }
@@ -232,7 +229,7 @@ function App() {
             created_at: status.created_at || existingTask.created_at || new Date().toISOString(),
           }
 
-          if (mergedTask.status === 'completed' || mergedTask.status === 'error' || isStaleTask(mergedTask)) {
+          if (isStaleTask(mergedTask)) {
             const newTasks = { ...prev }
             delete newTasks[taskId]
             return normalizeStoredTasks(newTasks)
@@ -252,11 +249,13 @@ function App() {
             return newIntervals
           })
 
-          setActiveTasks(prev => {
-            const newTasks = { ...prev }
-            delete newTasks[taskId]
-            return normalizeStoredTasks(newTasks)
-          })
+          window.setTimeout(() => {
+            setActiveTasks(prev => {
+              const newTasks = { ...prev }
+              delete newTasks[taskId]
+              return normalizeStoredTasks(newTasks)
+            })
+          }, 5000)
         }
       } catch (error) {
         console.error('Error polling task status:', error)
@@ -292,7 +291,20 @@ function App() {
         playlistId={playlistId}
         onBack={handleBack}
         activeTask={getTaskByPlaylistId(playlistId)}
-        onStartTask={(taskId) => startTaskPolling(taskId, playlistId)}
+        onStartTask={(taskId) => {
+          setActiveTasks(prev => ({
+            ...prev,
+            [taskId]: {
+              taskId,
+              playlistId,
+              status: 'queued',
+              message: 'Queued for processing',
+              progress: 0,
+              created_at: new Date().toISOString(),
+            },
+          }))
+          startTaskPolling(taskId, playlistId)
+        }}
         appVersion={appVersion}
       />
       <ProcessingOverlay activeTasks={Object.values(activeTasks)} />

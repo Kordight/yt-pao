@@ -47,7 +47,11 @@ processing_lock = Lock()
 
 def update_processing_status(task_id, status):
     with processing_lock:
-        processing_status[task_id] = status
+        previous_status = processing_status.get(task_id, {})
+        processing_status[task_id] = {
+            **previous_status,
+            **status,
+        }
 
 def get_processing_status(task_id):
     with processing_lock:
