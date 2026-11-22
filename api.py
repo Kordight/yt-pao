@@ -47,7 +47,11 @@ processing_lock = Lock()
 
 def update_processing_status(task_id, status):
     with processing_lock:
-        processing_status[task_id] = status
+        previous_status = processing_status.get(task_id, {})
+        processing_status[task_id] = {
+            **previous_status,
+            **status,
+        }
 
 def get_processing_status(task_id):
     with processing_lock:
@@ -334,8 +338,9 @@ def run_playlist_report(playlist_id: int, payload: Optional[PlaylistReportReques
             'playlist_id': playlist_id
         })
         
-        # Run in a separate thread
-        selected_formats = payload.formats if payload and payload.formats else ['mySQL']
+        # The playlist detail "Run report" action only creates a database snapshot.
+        # File formats are available through the CLI, not as a UI report job.
+        selected_formats = ['mySQL']
         thread = threading.Thread(
             target=generate_report_from_playlist_url,
             args=(playlist_url, task_id, selected_formats),

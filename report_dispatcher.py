@@ -9,6 +9,7 @@ from mySQL_manager import add_report, create_database
 
 
 SUPPORTED_REPORT_FORMATS = {'cmd', 'txt', 'json', 'csv', 'html', 'mySQL'}
+FILE_REPORT_FORMATS = {'txt', 'json', 'csv', 'html'}
 
 
 def build_output_folder(playlist_name, playlist_id):
@@ -217,7 +218,14 @@ def generate_reports_for_formats(
 
     playlist_name = playlist_data['playlist_name']
     playlist_id = playlist_data['url'].split('list=')[-1]
-    folder_path = output_folder or build_output_folder(playlist_name, playlist_id)
+    file_formats_requested = bool(set(normalized_formats) & FILE_REPORT_FORMATS)
+    folder_path = None
+    if file_formats_requested:
+        if output_folder:
+            folder_path = output_folder
+            os.makedirs(folder_path, exist_ok=True)
+        else:
+            folder_path = build_output_folder(playlist_name, playlist_id)
     current_date_time = date_time or datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
     results = {}
